@@ -1,691 +1,626 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Overview - LPR-16 Curitiba</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-/* Cores e estilos Shopee */
-.accent-shopee { background-color: #FF5C00; }
-.accent-shopee:hover { background-color: #E04E00; }
-.text-shopee { color: #FF5C00; }
-.border-shopee { border-color: #FF5C00; }
-/* Estilos base Dark Mode */
-body {
-font-family: 'Inter', sans-serif;
-background-color: #0d131f;
-color: #e5e7eb;
-}
-.kpi-grid {
-grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
-/* Ajuste para 4 colunas em telas grandes (Gerência) */
-@media (min-width: 1280px) {
-.kpi-grid {
-grid-template-columns: repeat(4, 1fr);
-}
-}
-.card {
-transition: all 0.3s ease;
-border: 1px solid rgba(255, 255, 255, 0.1);
-background-color: #1f2937;
-}
-.card:hover {
-transform: translateY(-2px);
-box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
-}
-input[type="date"], input[type="number"], select, textarea {
-background-color: #374151 !important;
-border-color: #4b5563 !important;
-color: #f3f4f6 !important;
-}
-.tab-button.active {
-border-color: #FF5C00;
-color: #FF5C00;
-background-color: #1f2937;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LPR-16: Dashboard Gerencial</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <style>
+        /* Estilos personalizados para a dashboard */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f9;
+        }
+        .kpi-card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+            transition: transform 0.3s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+        }
+        .metric-title {
+            color: #4a5568;
+        }
+        .metric-value {
+            font-size: 2.25rem;
+            font-weight: 700;
+        }
+        .bg-inventory { background-color: #4CAF50; } /* Verde */
+        .bg-reverse { background-color: #F44336; } /* Vermelho */
+        .bg-service-level { background-color: #2196F3; } /* Azul */
+        .bg-logistics { background-color: #FF9800; } /* Laranja */
+        .bg-general { background-color: #673AB7; } /* Roxo */
+        
+        /* Estilo para o modal (fora do Tailwind para garantir sobreposição) */
+        .modal {
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 100;
+        }
+        .modal-content {
+            max-width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+    </style>
 </head>
-<body class="p-4 md:p-8">
-<header class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center p-6 bg-gray-800 rounded-xl shadow-2xl">
-<div>
-<h1 class="text-3xl font-extrabold text-shopee">Overview - LPR-16 Curitiba</h1>
-<p id="current-user-id" class="text-sm text-gray-400 mt-1">✅ Dashboard Gerencial com Histórico Funcional</p>
-</div>
-<button id="open-modal-btn" class="mt-4 md:mt-0 px-6 py-2 accent-shopee text-white font-semibold rounded-lg shadow-md transition duration-300">Inserir/Editar Dados</button>
-</header>
-
-<div class="bg-gray-800 rounded-xl shadow-2xl p-6">
-<div class="border-b border-gray-700 mb-6">
-<nav class="-mb-px flex space-x-8 overflow-x-auto pb-2" aria-label="Tabs">
-<button
-id="tab-dashboard"
-class="tab-button active whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition duration-150 ease-in-out border-shopee text-shopee"
-data-tab-target="dashboard-content"
-data-area-type="dashboard"
->📈 OVERVIEW (Resumo Geral)</button>
-<button
-id="tab-inventory"
-class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition duration-150 ease-in-out border-transparent text-gray-400 hover:text-shopee hover:border-shopee"
-data-tab-target="inventory-content"
-data-area-type="Inventário"
->📦 INVENTÁRIO (Histórico)</button>
-<button
-id="tab-reverse"
-class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition duration-150 ease-in-out border-transparent text-gray-400 hover:text-shopee hover:border-shopee"
-data-tab-target="reverse-content"
-data-area-type="Reversa"
->🔁 REVERSA (Histórico)</button>
-</nav>
-</div>
-
-<div id="dashboard-content" class="tab-content">
-<h2 class="text-2xl font-bold text-gray-100 mb-6">Indicadores Chave (KPIs) - Visão Completa</h2>
-
-<div class="flex flex-col md:flex-row gap-4 mb-8 items-center bg-gray-700 p-4 rounded-lg">
-<label for="start-date" class="font-medium text-gray-300">Analisar período de:</label>
-<input type="date" id="start-date" class="p-2 border rounded-lg focus:ring-shopee focus:border-shopee w-full md:w-auto">
-<label for="end-date" class="font-medium text-gray-300">Até:</label>
-<input type="date" id="end-date" class="p-2 border rounded-lg focus:ring-shopee focus:border-shopee w-full md:w-auto">
-<button id="filter-btn-dashboard" class="px-6 py-2 accent-shopee text-white font-semibold rounded-lg shadow-md transition duration-300 w-full md:w-auto">Filtrar Dados e Gráficos</button>
-</div>
-
-<div id="kpi-dashboard-container" class="grid gap-6 kpi-grid mb-10">
-<p class="text-gray-400">Carregando KPIs de resumo...</p>
-</div>
-
-<h2 class="text-2xl font-bold text-gray-100 mb-6 mt-10">Análise de Tendência e Distribuição</h2>
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-<div class="bg-gray-700 p-4 rounded-lg shadow-inner min-h-[300px] flex flex-col">
-<h3 class="text-lg font-semibold mb-2 text-shopee">1. Erros por Sorting (Dia) - Inventário</h3>
-<div class="flex-grow relative"><canvas id="sortingChart"></canvas></div>
-</div>
-<div class="bg-gray-700 p-4 rounded-lg shadow-inner min-h-[300px] flex flex-col">
-<h3 class="text-lg font-semibold mb-2 text-shopee">2. Desvios de Expedição - Inventário</h3>
-<div class="flex-grow relative"><canvas id="desviosChart"></canvas></div>
-</div>
-<div class="bg-gray-700 p-4 rounded-lg shadow-inner min-h-[300px] flex flex-col">
-<h3 class="text-lg font-semibold mb-2 text-shopee">3. Insucessos Recebidos - Reversa</h3>
-<div class="flex-grow relative"><canvas id="insucessosChart"></canvas></div>
-</div>
-<div class="bg-gray-700 p-4 rounded-lg shadow-inner min-h-[300px] flex flex-col">
-<h3 class="text-lg font-semibold mb-2 text-shopee">4. Backlog Inventário (Progressão)</h3>
-<div class="flex-grow relative"><canvas id="backlogChart"></canvas></div>
-</div>
-</div>
-</div>
-
-<div id="inventory-content" class="tab-content hidden">
-<h2 class="text-2xl font-bold text-gray-100 mb-4">📦 Histórico de Registros de Inventário</h2>
-<p class="mb-4 text-gray-400">Clique em "Inserir/Editar Dados" para adicionar um novo registro, ou clique em um registro abaixo para editar/excluir.</p>
-<div id="inventory-records-list" class="space-y-3">
-<p class="text-gray-400">Nenhum registro encontrado.</p>
-</div>
-</div>
-
-<div id="reverse-content" class="tab-content hidden">
-<h2 class="text-2xl font-bold text-gray-100 mb-4">🔁 Histórico de Registros de Reversa</h2>
-<p class="mb-4 text-gray-400">Clique em "Inserir/Editar Dados" para adicionar um novo registro, ou clique em um registro abaixo para editar/excluir.</p>
-<div id="reverse-records-list" class="space-y-3">
-<p class="text-gray-400">Nenhum registro encontrado.</p>
-</div>
-</div>
-</div>
-
-<div id="data-modal" class="fixed inset-0 bg-gray-900 bg-opacity-90 z-50 hidden items-center justify-center p-4">
-<div class="bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 relative">
-<h3 class="text-2xl font-bold mb-6 text-shopee" id="modal-title">Inserir Dados Diários</h3>
-<button id="close-modal-btn" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
-
-<div id="area-selection" class="mb-6 p-4 border border-gray-700 rounded-lg">
-<label for="input-area" class="block text-sm font-medium text-gray-300 mb-2">Selecione a Área de Registro:</label>
-<select id="input-area" class="block w-full p-3 border rounded-lg focus:ring-shopee focus:border-shopee">
-<option value="Inventário">📦 Inventário</option>
-<option value="Reversa">🔁 Reversa</option>
-</select>
-</div>
-
-<form id="daily-data-form" class="space-y-4">
-<div class="w-full">
-<label for="input-date" class="block text-sm font-medium text-gray-300">Data do Registro</label>
-<input type="date" id="input-date" required class="mt-1 block w-full p-3 border rounded-lg shadow-sm focus:ring-shopee focus:border-shopee">
-</div>
-
-<div id="dynamic-fields-container" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-
-<div class="col-span-1 md:col-span-2">
-<label for="input-observacoes" class="block text-sm font-medium text-gray-300">Observações (Campo Livre)</label>
-<textarea id="input-observacoes" rows="2" class="mt-1 block w-full p-3 border rounded-lg focus:ring-shopee focus:border-shopee"></textarea>
-</div>
-
-<div id="calculation-results" class="col-span-1 md:col-span-2 p-4 bg-gray-700 rounded-lg hidden">
-<p class="font-semibold text-gray-200 mb-1" id="calc-result-1-title"></p>
-<p class="font-bold text-xl text-green-400" id="calc-result-1-value"></p>
-<p class="font-semibold text-gray-200 mt-3 mb-1" id="calc-result-2-title"></p>
-<p class="font-bold text-xl text-red-400" id="calc-result-2-value"></p>
-</div>
-
-<div class="mt-6 col-span-1 md:col-span-2">
-<button type="submit" id="save-data-btn" class="w-full py-3 accent-shopee text-white font-bold rounded-lg shadow-lg transition duration-300">Salvar Dados</button>
-</div>
-</form>
-</div>
-</div>
-
-<div id="system-message" class="fixed bottom-4 right-4 bg-red-600 text-white p-3 rounded-lg shadow-xl hidden" role="alert"></div>
-<div id="custom-confirmation-modal" class="fixed inset-0 bg-gray-900 bg-opacity-90 z-50 hidden items-center justify-center p-4"></div>
-
-<script>
-// --- DADOS DE EXEMPLO (MOCK DATA) AGORA VAZIOS ---
-const MOCK_INVENTORY_DATA = [];
-const MOCK_REVERSE_DATA = [];
-
-// --- Mapeamento de Campos ---
-const INVENTORY_FIELDS = [
-{ key: 'sobraDeMotoAM', label: 'Sobra de Moto (AM)', type: 'Quantidade', group: 'sobra' },
-{ key: 'sobraDeMotoPM', label: 'Sobra de Moto (PM)', type: 'Quantidade', group: 'sobra' },
-{ key: 'sobraDeCarroAM', label: 'Sobra de Carro (AM)', type: 'Quantidade', group: 'sobra' },
-{ key: 'sobraDeCarroPM', label: 'Sobra de Carro (PM)', type: 'Quantidade', group: 'sobra' },
-{ key: 'erroEtiquetaAM', label: 'Erros Etiqueta Errada (AM)', type: 'Erros', group: 'erro' },
-{ key: 'erroEtiquetaPM', label: 'Erros Etiqueta Errada (PM)', type: 'Erros', group: 'erro' },
-{ key: 'erroSortingAM', label: 'Erros Erro Sorting (AM)', type: 'Erros', group: 'erro' },
-{ key: 'erroSortingPM', label: 'Erros Erro Sorting (PM)', type: 'Erros', group: 'erro' },
-{ key: 'pacotesEHA_AM', label: 'Controle Pacotes EHA (AM)', type: 'Controle', group: 'volume' },
-{ key: 'pacotesEHA_PM', label: 'Controle Pacotes EHA (PM)', type: 'Controle', group: 'volume' },
-{ key: 'backlogGoleiro', label: 'Controle Backlog Goleiro AM / PM', type: 'Controle', group: 'volume' },
-{ key: 'volumosos', label: 'Controle Volumosos', type: 'Controle', group: 'volume' },
-{ key: 'totalAvariadosRecebidosAM', label: 'Avariados Recebidos (AM)', type: 'Avarias', group: 'avaria' },
-{ key: 'totalAvariadosRecebidosPM', label: 'Avariados Recebidos (PM)', type: 'Avarias', group: 'avaria' },
-{ key: 'avariadosHUB', label: 'Pacotes Avariados HUB', type: 'Avarias', group: 'avaria' },
-{ key: 'avariadosSOC', label: 'Pacotes Avariados SOC', type: 'Avarias', group: 'avaria' },
-{ key: 'pacotesRecuperados', label: 'Pacotes Recuperados (Salvamento)', type: 'Avarias', group: 'avaria' },
-{ key: 'backlogInventario', label: 'Backlog (Pendências)', type: 'Pendências', group: 'backlog' },
-{ key: 'desviosExpedicao', label: 'Crítico Desvios de Expedição', type: 'Crítico', group: 'erro' }
-];
-
-const REVERSE_FIELDS = [
-{ key: 'insucessosRecebidos', label: 'Controle Insucessos Recebidos', type: 'Controle', group: 'volume' },
-{ key: 'pacotesReetiquetados', label: 'Reprocessamento Pacotes Reetiquetados', type: 'Reprocessamento', group: 'volume' },
-{ key: 'retornosEnviados', label: 'Saídas Retornos Enviados', type: 'Saídas', group: 'saida' },
-{ key: 'misortingEnviados', label: 'Saídas Misorting Enviados', type: 'Saídas', group: 'saida' },
-{ key: 'liquidatingEnviados', label: 'Saídas Liquidating Enviados', type: 'Saídas', group: 'saida' },
-{ key: 'semIdentificacaoEnviados', label: 'Saídas Sem Identificação Enviados', type: 'Saídas', group: 'saida' },
-{ key: 'lhsRecebidas', label: 'Recebimento LH’s Recebidas (carretas)', type: 'Recebimento', group: 'volume' },
-{ key: 'totalPacotesDescarregados', label: 'Quantitativo Total Pacotes Descarregados', type: 'Quantitativo', group: 'volume' },
-{ key: 'pacotesVoandoRev', label: 'Anomalias Pacotes Voando (sem rastreio)', type: 'Anomalias', group: 'anomalia' },
-{ key: 'lhsCarregadas', label: 'Saídas LH’s Carregadas (Pallets / Sacas / Papelão)', type: 'Saídas', group: 'saida' },
-];
-
-let allMetrics = { Inventário: [], Reversa: [] };
-let chartInstances = {};
-
-// --- Funções de Inicialização e Cálculo ---
-function calculateInventario(data) {
-const totalEHA = (data.pacotesEHA_AM || 0) + (data.pacotesEHA_PM || 0);
-const totalSorting = (data.erroSortingAM || 0) + (data.erroSortingPM || 0);
-const totalAvarias = (data.totalAvariadosRecebidosAM || 0) + (data.totalAvariadosRecebidosPM || 0);
-const totalErroEtiqueta = (data.erroEtiquetaAM || 0) + (data.erroEtiquetaPM || 0);
-
-return { totalEHA, totalSorting, totalAvarias, totalErroEtiqueta };
-}
-
-function calculateReversa(data) {
-return {};
-}
-
-function processMockData(area, mockData) {
-return mockData.map(data => {
-if (area === 'Inventário') {
-return { ...data, ...calculateInventario(data) };
-} else if (area === 'Reversa') {
-return { ...data, ...calculateReversa(data) };
-}
-return data;
-});
-}
-
-function saveDataToStorage(area, data) {
-let areaMetrics = allMetrics[area];
-const index = areaMetrics.findIndex(m => m.date === data.date);
-let finalData = { ...data };
-
-if (area === 'Inventário') {
-finalData = { ...finalData, ...calculateInventario(data) };
-} else if (area === 'Reversa') {
-finalData = { ...finalData, ...calculateReversa(data) };
-}
-
-if (index !== -1) {
-areaMetrics[index] = finalData;
-} else {
-areaMetrics.push(finalData);
-}
-
-localStorage.setItem(`${area.toLowerCase()}_metrics_local`, JSON.stringify(areaMetrics));
-allMetrics[area] = areaMetrics;
-showMessage(`Dados de ${area} em ${data.date} salvos com sucesso!`);
-
-document.getElementById('data-modal').classList.add('hidden');
-document.getElementById('data-modal').classList.remove('flex');
-
-const start = document.getElementById('start-date').value;
-const end = document.getElementById('end-date').value;
-loadDashboardMetrics(start, end);
-renderHistoricalRecords(area === 'Inventário' ? 'inventory-records-list' : 'reverse-records-list', area, areaMetrics);
-}
-
-function deleteDataFromStorage(area, date) {
-let areaMetrics = allMetrics[area];
-areaMetrics = areaMetrics.filter(m => m.date !== date);
-
-localStorage.setItem(`${area.toLowerCase()}_metrics_local`, JSON.stringify(areaMetrics));
-allMetrics[area] = areaMetrics;
-
-showMessage(`Registro de ${area} em ${date} excluído com sucesso!`);
-
-const start = document.getElementById('start-date').value;
-const end = document.getElementById('end-date').value;
-loadDashboardMetrics(start, end);
-renderHistoricalRecords(area === 'Inventário' ? 'inventory-records-list' : 'reverse-records-list', area, areaMetrics);
-}
-
-// --- Funções de UI (sem alteração) ---
-function showMessage(message, isError = false) {
-const el = document.getElementById('system-message');
-el.textContent = message;
-el.classList.remove('hidden', 'bg-red-600', 'bg-green-600');
-el.classList.add(isError ? 'bg-red-600' : 'bg-green-600');
-setTimeout(() => el.classList.add('hidden'), 5000);
-}
-
-function formatDate(date) {
-return date instanceof Date ? date.toISOString().split('T')[0] : date;
-}
-
-function showCustomConfirmation(message, onConfirm) {
-let modalConfirmation = document.getElementById('custom-confirmation-modal');
-modalConfirmation.classList.remove('hidden');
-modalConfirmation.classList.add('flex');
-modalConfirmation.innerHTML = `<div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-sm w-full"><h5 class="text-lg font-bold mb-4 text-shopee">Confirmação de Ação</h5><p class="mb-6 text-gray-300">${message}</p><div class="flex justify-end space-x-3"><button id="cancel-action" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500">Cancelar</button><button id="confirm-action" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500">Confirmar</button></div></div>`;
-
-const removeModal = () => {
-modalConfirmation.classList.add('hidden');
-modalConfirmation.classList.remove('flex');
-};
-
-document.getElementById('cancel-action').addEventListener('click', removeModal);
-document.getElementById('confirm-action').addEventListener('click', () => { onConfirm(); removeModal(); });
-}
-
-function renderForm(area, initialData = {}) {
-const container = document.getElementById('dynamic-fields-container');
-container.innerHTML = '';
-const fields = area === 'Inventário' ? INVENTORY_FIELDS : REVERSE_FIELDS;
-
-fields.forEach(field => {
-const value = initialData[field.key] !== undefined ? initialData[field.key] : 0;
-const div = document.createElement('div');
-div.className = 'w-full';
-div.innerHTML = `<label for="input-${field.key}" class="block text-sm font-medium text-gray-300">${field.label} <span class="text-xs text-gray-500">(${field.type})</span></label><input type="number" min="0" value="${value}" required class="mt-1 block w-full p-3 border rounded-lg focus:ring-shopee focus:border-shopee" data-metric-key="${field.key}">`;
-container.appendChild(div);
-});
-
-document.getElementById('input-observacoes').value = initialData.observacoes || '';
-updateCalculations();
-}
-
-function updateCalculations() {
-const resultsContainer = document.getElementById('calculation-results');
-resultsContainer.classList.add('hidden');
-}
-
-function renderHistoricalRecords(containerId, area, metrics) {
-const listContainer = document.getElementById(containerId);
-listContainer.innerHTML = '';
-const sortedMetrics = metrics.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-if (sortedMetrics.length === 0) {
-listContainer.innerHTML = '<p class="text-gray-400">Nenhum registro encontrado.</p>';
-return;
-}
-
-sortedMetrics.forEach(metric => {
-let mainMetricDisplay = '';
-let mainMetricColor = 'text-gray-400';
-
-if (area === 'Inventário') {
-const backlog = metric.backlogInventario !== undefined ? metric.backlogInventario.toLocaleString('pt-BR') : 0;
-mainMetricDisplay = `Backlog: ${backlog}`;
-mainMetricColor = backlog == 0 ? 'text-green-400' : 'text-yellow-400';
-} else if (area === 'Reversa') {
-const insucessos = metric.insucessosRecebidos !== undefined ? metric.insucessosRecebidos.toLocaleString('pt-BR') : 0;
-mainMetricDisplay = `Insucessos: ${insucessos}`;
-mainMetricColor = 'text-blue-400';
-}
-
-const div = document.createElement('div');
-div.className = 'flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 card rounded-lg border border-gray-600';
-div.innerHTML = `<div class="mb-2 sm:mb-0"><span class="font-semibold text-gray-200">${metric.date}</span><span class="ml-4 ${mainMetricColor} font-bold">${mainMetricDisplay}</span></div><div class="space-x-2 flex"><button data-date="${metric.date}" data-area="${area}" class="edit-btn text-shopee hover:text-orange-400 font-medium">Editar</button><button data-date="${metric.date}" data-area="${area}" class="delete-btn text-red-400 hover:text-red-300 font-medium">Excluir</button></div>`;
-listContainer.appendChild(div);
-});
-
-// Adicionando event listeners após a renderização
-listContainer.querySelectorAll('.edit-btn').forEach(button => {
-button.addEventListener('click', (e) => editRecord(e.target.dataset.area, e.target.dataset.date));
-});
-
-listContainer.querySelectorAll('.delete-btn').forEach(button => {
-button.addEventListener('click', (e) => {
-const area = e.target.dataset.area;
-const date = e.target.dataset.date;
-showCustomConfirmation(`Tem certeza que deseja EXCLUIR o registro de ${area} em ${date}?`, () => deleteDataFromStorage(area, date));
-});
-});
-}
-
-function editRecord(area, date) {
-const record = allMetrics[area].find(m => m.date === date);
-if (!record) { showMessage(`Registro de ${area} em ${date} não encontrado.`, true); return; }
-
-document.getElementById('modal-title').textContent = `Editando Dados de ${area} em ${date}`;
-document.getElementById('input-area').value = area;
-document.getElementById('input-area').disabled = true;
-document.getElementById('input-date').value = date;
-renderForm(area, record);
-openDataModal(area, record);
-}
-
-function openDataModal(area = 'Inventário', data = {}) {
-if (!data.date) {
-document.getElementById('modal-title').textContent = 'Inserir Dados Diários';
-document.getElementById('input-area').disabled = false;
-document.getElementById('input-area').value = area;
-document.getElementById('input-date').value = formatDate(new Date());
-} else {
-document.getElementById('input-area').disabled = true;
-}
-renderForm(area, data);
-document.getElementById('data-modal').classList.remove('hidden');
-document.getElementById('data-modal').classList.add('flex');
-}
-
-function switchTab(targetId) {
-document.querySelectorAll('.tab-content').forEach(content => { content.classList.add('hidden'); });
-document.getElementById(targetId).classList.remove('hidden');
-
-document.querySelectorAll('.tab-button').forEach(button => {
-button.classList.remove('active', 'border-shopee', 'text-shopee');
-button.classList.add('border-transparent', 'text-gray-400', 'hover:text-shopee', 'hover:border-shopee');
-});
-
-const activeBtn = document.querySelector(`[data-tab-target="${targetId}"]`);
-if (activeBtn) {
-activeBtn.classList.add('active', 'border-shopee', 'text-shopee');
-activeBtn.classList.remove('border-transparent', 'text-gray-400', 'hover:text-shopee', 'hover:border-shopee');
-}
-
-if (targetId === 'dashboard-content') {
-const start = document.getElementById('start-date').value;
-const end = document.getElementById('end-date').value;
-loadDashboardMetrics(start, end);
-}
-}
-
-function loadDashboardMetrics(startDate, endDate) {
-const inventarioMetrics = allMetrics.Inventário.filter(m => m.date >= startDate && m.date <= endDate);
-const reversaMetrics = allMetrics.Reversa.filter(m => m.date >= startDate && m.date <= endDate);
-
-calculateAndRenderKPIs(inventarioMetrics, reversaMetrics);
-renderDashboardCharts(inventarioMetrics, reversaMetrics);
-}
-
-// --- FUNÇÃO KPI's (sem alteração) ---
-function calculateAndRenderKPIs(inventarioMetrics, reversaMetrics) {
-const container = document.getElementById('kpi-dashboard-container');
-container.innerHTML = '';
-
-// --- CÁLCULOS DE INVENTÁRIO ---
-const totalDesvios = inventarioMetrics.reduce((sum, m) => sum + (m.desviosExpedicao || 0), 0);
-
-// Totais para detalhamento AM/PM
-const totalEHA = inventarioMetrics.reduce((sum, m) => sum + (m.pacotesEHA_AM || 0) + (m.pacotesEHA_PM || 0), 0);
-const totalSortingErros = inventarioMetrics.reduce((sum, m) => sum + (m.erroSortingAM || 0) + (m.erroSortingPM || 0), 0);
-const totalAvariadosRecebidos = inventarioMetrics.reduce((sum, m) => sum + (m.totalAvariadosRecebidosAM || 0) + (m.totalAvariadosRecebidosPM || 0), 0);
-const totalErroEtiqueta = inventarioMetrics.reduce((sum, m) => sum + (m.erroEtiquetaAM || 0) + (m.erroEtiquetaPM || 0), 0);
-
-const totalAvariadosHUB = inventarioMetrics.reduce((sum, m) => sum + (m.avariadosHUB || 0), 0);
-const totalAvariadosSOC = inventarioMetrics.reduce((sum, m) => sum + (m.avariadosSOC || 0), 0);
-const totalPacotesRecuperados = inventarioMetrics.reduce((sum, m) => sum + (m.pacotesRecuperados || 0), 0);
-
-const latestInventarioBacklog = inventarioMetrics.length > 0 ? inventarioMetrics.sort((a, b) => new Date(b.date) - new Date(a.date))[0].backlogInventario || 0 : 0;
-
-
-// FUNÇÕES PARA DETALHE AM/PM
-const detailEHA = inventarioMetrics.length > 0 ?
-`(${inventarioMetrics.reduce((sum, m) => sum + (m.pacotesEHA_AM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.pacotesEHA_PM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
-
-const detailSorting = inventarioMetrics.length > 0 ?
-`(${inventarioMetrics.reduce((sum, m) => sum + (m.erroSortingAM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.erroSortingPM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
-
-const detailAvarias = inventarioMetrics.length > 0 ?
-`(${inventarioMetrics.reduce((sum, m) => sum + (m.totalAvariadosRecebidosAM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.totalAvariadosRecebidosPM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
-
-const detailErroEtiqueta = inventarioMetrics.length > 0 ?
-`(${inventarioMetrics.reduce((sum, m) => sum + (m.erroEtiquetaAM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.erroEtiquetaPM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
-
-
-// --- CÁLCULOS DE REVERSA ---
-const totalInsucessos = reversaMetrics.reduce((sum, m) => sum + (m.insucessosRecebidos || 0), 0);
-const totalLHsRecebidas = reversaMetrics.reduce((sum, m) => sum + (m.lhsRecebidas || 0), 0);
-const totalPacotesDescarregados = reversaMetrics.reduce((sum, m) => sum + (m.totalPacotesDescarregados || 0), 0);
-const avgPacotesPorLH = totalLHsRecebidas > 0 ? (totalPacotesDescarregados / totalLHsRecebidas) : 0;
-
-// --- DEFINIÇÃO DOS KPIS ---
-const kpis = [
-// 1. INVENTÁRIO (VOLUME & ERROS CRÍTICOS)
-{ name: 'Pacotes EHA (Entrada)', value: totalEHA.toLocaleString('pt-BR'), detail: detailEHA, color: 'bg-blue-700', sub: 'Inventário - Volume Base' },
-{ name: 'Sorting Erros (Período)', value: totalSortingErros.toLocaleString('pt-BR'), detail: detailSorting, color: 'bg-red-700', sub: 'Inventário - Erro Classificação' },
-{ name: 'Erros Etiqueta Errada', value: totalErroEtiqueta.toLocaleString('pt-BR'), detail: detailErroEtiqueta, color: 'bg-red-700', sub: 'Inventário - Erro Etiqueta' },
-{ name: 'Desvios Expedição', value: totalDesvios.toLocaleString('pt-BR'), detail: '', color: 'bg-red-700', sub: 'Inventário - Crítico' },
-{ name: 'Backlog (Inventário)', value: latestInventarioBacklog.toLocaleString('pt-BR'), detail: '', color: latestInventarioBacklog > 0 ? 'accent-shopee' : 'bg-green-600', sub: 'Inventário - Status Atual' },
-
-// 2. REVERSA (STATUS & VOLUME)
-{ name: 'Insucessos Recebidos', value: totalInsucessos.toLocaleString('pt-BR'), detail: '', color: 'bg-indigo-600', sub: 'Reversa - Volume Processado' },
-{ name: 'LH’s Recebidas', value: totalLHsRecebidas.toLocaleString('pt-BR'), detail: '', color: 'bg-gray-600', sub: 'Reversa - Entrada Carretas' },
-{ name: 'Pacotes Descarregados', value: totalPacotesDescarregados.toLocaleString('pt-BR'), detail: '', color: 'bg-gray-600', sub: 'Reversa - Volume por LH' },
-{ name: 'Pacotes / LH (Média)', value: avgPacotesPorLH.toFixed(0).toLocaleString('pt-BR'), detail: '', color: 'bg-gray-600', sub: 'Reversa - Média por Carreta' },
-
-// 3. INVENTÁRIO (AVARIAS E RECUPERAÇÃO)
-{ name: 'Avariados Recebidos', value: totalAvariadosRecebidos.toLocaleString('pt-BR'), detail: detailAvarias, color: 'bg-yellow-700', sub: 'Inventário - Total de Avarias' },
-{ name: 'Avariados HUB (Responsabilidade)', value: totalAvariadosHUB.toLocaleString('pt-BR'), detail: '', color: 'bg-red-800', sub: 'Inventário - HUB Share' },
-{ name: 'Avariados SOC (Responsabilidade)', value: totalAvariadosSOC.toLocaleString('pt-BR'), detail: '', color: 'bg-red-800', sub: 'Inventário - SOC Share' },
-{ name: 'Pacotes Recuperados (Salvamento)', value: totalPacotesRecuperados.toLocaleString('pt-BR'), detail: '', color: 'bg-green-700', sub: 'Inventário - Volume Salvo' }
-];
-
-// Renderiza os KPIs
-container.style.gridTemplateColumns = `repeat(${Math.min(kpis.length, 5)}, 1fr)`; // Ajusta o grid para 5 colunas se houver mais de 5 KPIs
-
-kpis.forEach(kpi => {
-const card = document.createElement('div');
-card.className = `card ${kpi.color} p-5 rounded-xl shadow-lg flex flex-col justify-between`;
-card.innerHTML = `
-<p class="text-sm font-medium opacity-90">${kpi.name}</p>
-<p class="text-xs text-gray-200 mt-1 mb-2">${kpi.sub}</p>
-<p class="text-4xl font-bold text-white">${kpi.value}</p>
-${kpi.detail ? `<p class="text-xs text-white opacity-70 mt-1">${kpi.detail}</p>` : ''}
-`;
-container.appendChild(card);
-});
-}
-
-// --- FUNÇÃO CHART ATUALIZADA (Adiciona o Gráfico de Backlog Inventário) ---
-function renderDashboardCharts(inventarioMetrics, reversaMetrics) {
-Object.values(chartInstances).forEach(instance => instance.destroy());
-chartInstances = {};
-
-const chartGlobalOptions = {
-responsive: true,
-maintainAspectRatio: false,
-plugins: {
-legend: { labels: { color: '#e5e7eb' } }
-},
-scales: {
-x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
-y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255, 255, 255, 0.1)' }, beginAtZero: true }
-}
-};
-
-const sortedInv = inventarioMetrics.sort((a, b) => new Date(a.date) - new Date(b.date));
-const sortedRev = reversaMetrics.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-// GRÁFICO 1: Erros Sorting
-const ctx1 = document.getElementById('sortingChart')?.getContext('2d');
-if (ctx1) {
-chartInstances.sortingChart = new Chart(ctx1, {
-type: 'line',
-data: {
-labels: sortedInv.map(m => m.date),
-datasets: [{
-label: 'Erros Sorting (AM + PM)',
-data: sortedInv.map(m => m.totalSorting),
-borderColor: '#FF5C00',
-backgroundColor: 'rgba(255, 92, 0, 0.3)',
-fill: true,
-tension: 0.4
-}]
-},
-options: chartGlobalOptions
-});
-}
-
-// GRÁFICO 2: Desvios
-const ctx2 = document.getElementById('desviosChart')?.getContext('2d');
-if (ctx2) {
-chartInstances.desviosChart = new Chart(ctx2, {
-type: 'bar',
-data: {
-labels: sortedInv.map(m => m.date),
-datasets: [{
-label: 'Desvios de Expedição',
-data: sortedInv.map(m => m.desviosExpedicao),
-backgroundColor: '#dc2626'
-}]
-},
-options: chartGlobalOptions
-});
-}
-
-// GRÁFICO 3: Insucessos Reversa
-const ctx3 = document.getElementById('insucessosChart')?.getContext('2d');
-if (ctx3) {
-chartInstances.insucessosChart = new Chart(ctx3, {
-type: 'line',
-data: {
-labels: sortedRev.map(m => m.date),
-datasets: [{
-label: 'Insucessos Recebidos',
-data: sortedRev.map(m => m.insucessosRecebidos),
-borderColor: '#818cf8',
-backgroundColor: 'rgba(129, 140, 248, 0.3)',
-fill: true,
-tension: 0.4
-}]
-},
-options: chartGlobalOptions
-});
-}
-
-// GRÁFICO 4: Backlog Inventário (Progressão) - NOVO
-const ctx4 = document.getElementById('backlogChart')?.getContext('2d');
-if (ctx4) {
-// Remove o parágrafo de placeholder se existir (embora o HTML tenha sido limpo)
-document.querySelector('#backlogChart').closest('.flex-col').querySelector('p')?.remove();
-
-chartInstances.backlogChart = new Chart(ctx4, {
-type: 'line',
-data: {
-labels: sortedInv.map(m => m.date),
-datasets: [{
-label: 'Backlog Inventário (Pendências)',
-data: sortedInv.map(m => m.backlogInventario),
-borderColor: '#FF5C00',
-backgroundColor: 'rgba(255, 92, 0, 0.3)',
-fill: true,
-tension: 0.4
-}]
-},
-options: chartGlobalOptions
-});
-}
-}
-
-// --- Função de Inicialização principal ---
-function initApp() {
-let invData = localStorage.getItem('inventory_metrics_local');
-let revData = localStorage.getItem('reverse_metrics_local');
-
-allMetrics.Inventário = invData ? JSON.parse(invData) : [];
-allMetrics.Reversa = revData ? JSON.parse(revData) : [];
-
-// Garante que todos os dados tenham os campos calculados atualizados
-allMetrics.Inventário = allMetrics.Inventário.map(m => ({ ...m, ...calculateInventario(m) }));
-allMetrics.Reversa = allMetrics.Reversa.map(m => ({ ...m, ...calculateReversa(m) }));
-
-const today = formatDate(new Date());
-const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-
-document.getElementById('start-date').value = formatDate(firstDayOfMonth);
-document.getElementById('end-date').value = today;
-
-loadDashboardMetrics(formatDate(firstDayOfMonth), today);
-renderHistoricalRecords('inventory-records-list', 'Inventário', allMetrics.Inventário);
-renderHistoricalRecords('reverse-records-list', 'Reversa', allMetrics.Reversa);
-
-setupListeners();
-}
-
-function setupListeners() {
-document.getElementById('filter-btn-dashboard').addEventListener('click', () => {
-const start = document.getElementById('start-date').value;
-const end = document.getElementById('end-date').value;
-loadDashboardMetrics(start, end);
-});
-
-document.querySelectorAll('.tab-button').forEach(button => {
-button.addEventListener('click', (e) => switchTab(e.target.dataset.tabTarget));
-});
-
-document.getElementById('open-modal-btn').addEventListener('click', () => openDataModal());
-
-document.getElementById('close-modal-btn').addEventListener('click', () => {
-document.getElementById('data-modal').classList.add('hidden');
-document.getElementById('data-modal').classList.remove('flex');
-});
-
-document.getElementById('input-area').addEventListener('change', (e) => renderForm(e.target.value, {}));
-
-document.getElementById('daily-data-form').addEventListener('submit', (e) => {
-e.preventDefault();
-const area = document.getElementById('input-area').value;
-const data = {
-date: document.getElementById('input-date').value,
-observacoes: document.getElementById('input-observacoes').value
-};
-
-document.querySelectorAll('#dynamic-fields-container input[data-metric-key]').forEach(input => {
-data[input.dataset.metricKey] = parseInt(input.value || '0', 10);
-});
-saveDataToStorage(area, data);
-});
-
-document.getElementById('dynamic-fields-container').addEventListener('input', updateCalculations);
-}
-
-// Iniciar App quando a janela carregar.
-window.onload = initApp;
-</script>
+<body>
+
+    <div id="message-container" class="fixed bottom-4 right-4 z-50"></div>
+
+    <div id="data-modal" class="modal fixed inset-0 hidden items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-lg shadow-xl p-6 w-full lg:w-1/3">
+            <h2 class="text-xl font-bold mb-4">Inserir/Editar Dados Diários</h2>
+            <form id="daily-data-form" class="space-y-4">
+                <div>
+                    <label for="input-area" class="block text-sm font-medium text-gray-700">Área (Obrigatório):</label>
+                    <select id="input-area" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2">
+                        <option value="">Selecione a Área</option>
+                        <option value="Inventario">Inventário</option>
+                        <option value="Reversa">Reversa</option>
+                        <option value="NivelDeServico">Nível de Serviço</option>
+                        <option value="Logistica">Logística</option>
+                        <option value="Geral">Geral</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="input-date" class="block text-sm font-medium text-gray-700">Data (Obrigatório):</label>
+                    <input type="date" id="input-date" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2">
+                </div>
+
+                <div id="dynamic-fields-container" class="space-y-3">
+                    </div>
+
+                <div>
+                    <label for="input-observacoes" class="block text-sm font-medium text-gray-700">Observações:</label>
+                    <textarea id="input-observacoes" rows="2" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2"></textarea>
+                </div>
+                
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="document.getElementById('data-modal').classList.add('hidden'); document.getElementById('data-modal').classList.remove('flex');" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                        Salvar Dados
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <header class="bg-white shadow-md">
+        <div class="container mx-auto px-4 py-6 flex justify-between items-center">
+            <h1 class="text-3xl font-bold text-gray-800">LPR-16 Curitiba: Dashboard de KPIs</h1>
+            <button onclick="document.getElementById('data-modal').classList.add('flex'); document.getElementById('data-modal').classList.remove('hidden'); setupModal();" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition duration-150">
+                Inserir/Editar Dados
+            </button>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-4 py-4 bg-white shadow-md mt-4 rounded-lg">
+        <h2 class="text-xl font-semibold mb-3 text-gray-700">Filtro de Período</h2>
+        <div class="flex space-x-4 items-end">
+            <div>
+                <label for="start-date" class="block text-sm font-medium text-gray-700">De:</label>
+                <input type="date" id="start-date" class="mt-1 block border-gray-300 rounded-md shadow-sm p-2 w-48" onchange="applyFilters()">
+            </div>
+            <div>
+                <label for="end-date" class="block text-sm font-medium text-gray-700">Até:</label>
+                <input type="date" id="end-date" class="mt-1 block border-gray-300 rounded-md shadow-sm p-2 w-48" onchange="applyFilters()">
+            </div>
+            <button onclick="resetFilters()" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition duration-150">
+                Resetar Filtro
+            </button>
+        </div>
+    </div>
+
+    <main class="container mx-auto px-4 py-8">
+
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">KPIs de Hoje / Último Registro</h2>
+            <div id="kpi-summary" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                </div>
+        </section>
+
+        <section class="space-y-8">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Tendência de Métricas</h2>
+
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h3 class="text-xl font-bold mb-4 metric-title">Backlog de Inventário e Processos de Reversa</h3>
+                <canvas id="inventoryReverseChart"></canvas>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h3 class="text-xl font-bold mb-4 metric-title">Nível de Serviço: Tempo e Acuracidade</h3>
+                <canvas id="serviceLevelChart"></canvas>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h3 class="text-xl font-bold mb-4 metric-title">Logística: Desvios e Produtividade</h3>
+                <canvas id="logisticsChart"></canvas>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="text-center py-4 text-gray-500 mt-8">
+        <p>© 2025 LPR-16 Curitiba Dashboard. Última atualização: <span id="last-update-time"></span></p>
+    </footer>
+
+    <script>
+        // Mapeamento de Métricas e Cores
+        const metricConfigs = {
+            'Inventario': [
+                { key: 'backlogInventario', name: 'Backlog de Inventário (Unidades)', color: 'rgba(76, 175, 80, 1)' },
+                { key: 'totalSorting', name: 'Total Sorting (Unidades)', color: 'rgba(139, 195, 74, 1)' }
+            ],
+            'Reversa': [
+                { key: 'desviosExpedicao', name: 'Desvios de Expedição', color: 'rgba(244, 67, 54, 1)' },
+                { key: 'insucessosRecebidos', name: 'Insucessos Recebidos', color: 'rgba(255, 152, 0, 1)' }
+            ],
+            'NivelDeServico': [
+                { key: 'acuracidadeInventario', name: 'Acuracidade Inventário (%)', color: 'rgba(33, 150, 243, 1)' },
+                { key: 'slRecebimento', name: 'SL Recebimento (%)', color: 'rgba(103, 58, 183, 1)' },
+                { key: 'slExpedicao', name: 'SL Expedição (%)', color: 'rgba(0, 188, 212, 1)' }
+            ],
+            'Logistica': [
+                { key: 'produtividadeRecebimento', name: 'Produtividade Recebimento', color: 'rgba(255, 99, 132, 1)' },
+                { key: 'produtividadeExpedicao', name: 'Produtividade Expedição', color: 'rgba(75, 192, 192, 1)' }
+            ],
+            'Geral': [
+                { key: 'eficienciaGeral', name: 'Eficiência Geral (%)', color: 'rgba(255, 206, 86, 1)' },
+            ]
+        };
+
+        // Estrutura de dados para armazenar todas as métricas
+        let allMetrics = {
+            'Inventario': {},
+            'Reversa': {},
+            'NivelDeServico': {},
+            'Logistica': {},
+            'Geral': {}
+        };
+        
+        let charts = {};
+        let activeFilters = {
+            startDate: null,
+            endDate: null
+        };
+        
+        // Registrar o plugin datalabels
+        Chart.register(ChartDataLabels);
+
+        // --- Funções de Utilitário e Estado ---
+
+        function showMessage(message, isError = false) {
+            const container = document.getElementById('message-container');
+            const messageDiv = document.createElement('div');
+            
+            let bgColor = isError ? 'bg-red-500' : 'bg-green-500';
+            let icon = isError ? '❌' : '✅';
+
+            messageDiv.className = `${bgColor} text-white px-4 py-3 rounded-lg shadow-lg mb-3 flex items-center space-x-3 opacity-0 transition-opacity duration-300`;
+            messageDiv.innerHTML = `${icon} <span class="font-semibold">${message}</span>`;
+            
+            container.appendChild(messageDiv);
+            
+            // Fading in
+            setTimeout(() => {
+                messageDiv.classList.remove('opacity-0');
+            }, 10);
+
+            // Fading out and removal
+            setTimeout(() => {
+                messageDiv.classList.add('opacity-0');
+                setTimeout(() => {
+                    container.removeChild(messageDiv);
+                }, 500);
+            }, 5000);
+        }
+
+        // --- Funções de Dados e Armazenamento ---
+
+        function loadAllMetrics() {
+            Object.keys(allMetrics).forEach(area => {
+                const data = localStorage.getItem(`${area.toLowerCase()}_metrics_local`);
+                if (data) {
+                    allMetrics[area] = JSON.parse(data);
+                }
+            });
+            updateLastUpdateTime();
+        }
+
+        function saveDataToStorage(area, data) {
+            // Garante que o objeto para a área existe
+            if (!allMetrics[area]) {
+                allMetrics[area] = {};
+            }
+
+            // Remove a observação do objeto que vai para o Local Storage, mas mantém para a data
+            const cleanData = { ...data };
+            delete cleanData.observacoes;
+
+            // Chave de data (ISO format: YYYY-MM-DD)
+            const dateKey = data.date;
+
+            // Atualiza o objeto de métricas
+            const areaMetrics = { ...allMetrics[area], [dateKey]: data };
+            
+            // Salva no Local Storage
+            localStorage.setItem(`${area.toLowerCase()}_metrics_local`, JSON.stringify(areaMetrics));
+            
+            // Atualiza o estado global
+            allMetrics[area] = areaMetrics;
+
+            // Atualiza a dashboard e fecha o modal
+            renderDashboard();
+            document.getElementById('data-modal').classList.add('hidden');
+            document.getElementById('data-modal').classList.remove('flex');
+
+            showMessage(`Dados de ${area} em ${data.date} salvos com sucesso!`);
+        }
+
+        function updateLastUpdateTime() {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('pt-BR');
+            const timeStr = now.toLocaleTimeString('pt-BR');
+            document.getElementById('last-update-time').textContent = `${dateStr} às ${timeStr}`;
+        }
+        
+        // --- Funções de Renderização e Gráficos ---
+
+        function getFilteredMetrics() {
+            const filteredMetrics = {};
+            const startDate = activeFilters.startDate ? new Date(activeFilters.startDate) : null;
+            const endDate = activeFilters.endDate ? new Date(activeFilters.endDate) : null;
+
+            // Garante que o EndDate inclui o dia inteiro (até 23:59:59)
+            if (endDate) {
+                endDate.setDate(endDate.getDate() + 1);
+            }
+
+            Object.keys(allMetrics).forEach(area => {
+                filteredMetrics[area] = {};
+                
+                Object.keys(allMetrics[area]).forEach(dateKey => {
+                    const metricDate = new Date(dateKey + 'T00:00:00'); // Garante que a comparação é apenas por data
+
+                    const isBeforeEnd = !endDate || metricDate < endDate;
+                    const isAfterStart = !startDate || metricDate >= startDate;
+
+                    if (isAfterStart && isBeforeEnd) {
+                        filteredMetrics[area][dateKey] = allMetrics[area][dateKey];
+                    }
+                });
+            });
+
+            return filteredMetrics;
+        }
+
+        function getLatestMetricValue(area, key) {
+            const dates = Object.keys(allMetrics[area] || {}).sort((a, b) => new Date(b) - new Date(a));
+            for (const date of dates) {
+                if (allMetrics[area][date] && allMetrics[area][date][key] !== undefined) {
+                    return {
+                        value: allMetrics[area][date][key],
+                        date: date
+                    };
+                }
+            }
+            return { value: 0, date: 'N/A' };
+        }
+
+        function renderKPISummary() {
+            const container = document.getElementById('kpi-summary');
+            container.innerHTML = '';
+            
+            const kpiMap = {
+                'backlogInventario': { title: 'Backlog Inv. (Unid)', area: 'Inventario', color: 'bg-inventory' },
+                'desviosExpedicao': { title: 'Desvios Exp. (Unid)', area: 'Reversa', color: 'bg-reverse' },
+                'acuracidadeInventario': { title: 'Acuracidade Inv. (%)', area: 'NivelDeServico', color: 'bg-service-level', format: true },
+                'slExpedicao': { title: 'SL Expedição (%)', area: 'NivelDeServico', color: 'bg-service-level', format: true },
+                'produtividadeExpedicao': { title: 'Prod. Expedição', area: 'Logistica', color: 'bg-logistics' }
+            };
+
+            Object.keys(kpiMap).forEach(key => {
+                const config = kpiMap[key];
+                const latest = getLatestMetricValue(config.area, key);
+                const value = config.format ? (latest.value).toFixed(2) : latest.value.toLocaleString('pt-BR');
+
+                const card = `
+                    <div class="kpi-card ${config.color} text-white p-6 rounded-lg">
+                        <p class="metric-title text-sm font-light">${config.title} (Últ. Reg: ${latest.date})</p>
+                        <p class="metric-value">${value}</p>
+                    </div>
+                `;
+                container.innerHTML += card;
+            });
+        }
+        
+        function renderChart(canvasId, title, datasets, type = 'line', options = {}) {
+            if (charts[canvasId]) {
+                charts[canvasId].destroy();
+            }
+
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            
+            const defaultOptions = {
+                responsive: true,
+                maintainAspectRatio: true,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += context.parsed.y.toLocaleString('pt-BR');
+                                }
+                                return label;
+                            }
+                        }
+                    },
+                    datalabels: {
+                        display: false, // Desativa por padrão para não poluir
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Data'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Valor'
+                        },
+                        ticks: {
+                            callback: function(value, index, ticks) {
+                                return value.toLocaleString('pt-BR');
+                            }
+                        }
+                    }
+                }
+            };
+            
+            charts[canvasId] = new Chart(ctx, {
+                type: type,
+                data: {
+                    labels: datasets.labels,
+                    datasets: datasets.datasets.map(dataset => ({
+                        ...dataset,
+                        borderWidth: 2,
+                        pointRadius: 5,
+                        fill: false
+                    }))
+                },
+                options: { ...defaultOptions, ...options }
+            });
+        }
+
+        function createChartData(areaKeys, config, type = 'line') {
+            const filteredMetrics = getFilteredMetrics();
+            const allDates = new Set();
+            areaKeys.forEach(area => {
+                Object.keys(filteredMetrics[area] || {}).forEach(date => allDates.add(date));
+            });
+            const sortedDates = Array.from(allDates).sort();
+
+            const datasets = config.map(metric => {
+                const data = sortedDates.map(date => {
+                    const areaMetrics = filteredMetrics[metric.area] || {};
+                    return areaMetrics[date] ? areaMetrics[date][metric.key] : null;
+                });
+
+                return {
+                    label: metric.name,
+                    data: data,
+                    borderColor: metric.color,
+                    tension: 0.1,
+                    type: type // Permite tipos mistos
+                };
+            });
+
+            return {
+                labels: sortedDates,
+                datasets: datasets
+            };
+        }
+
+        function renderAllCharts() {
+            // 1. Inventário e Reversa
+            const invRevConfig = [
+                { ...metricConfigs['Inventario'][0], area: 'Inventario' }, // backlogInventario
+                { ...metricConfigs['Inventario'][1], area: 'Inventario' }, // totalSorting
+                { ...metricConfigs['Reversa'][0], area: 'Reversa' }, // desviosExpedicao
+                { ...metricConfigs['Reversa'][1], area: 'Reversa' }  // insucessosRecebidos
+            ];
+            const invRevData = createChartData(['Inventario', 'Reversa'], invRevConfig);
+            renderChart('inventoryReverseChart', 'Backlog de Inventário e Processos de Reversa', invRevData);
+
+            // 2. Nível de Serviço
+            const slConfig = metricConfigs['NivelDeServico'].map(m => ({ ...m, area: 'NivelDeServico' }));
+            const slData = createChartData(['NivelDeServico'], slConfig);
+            renderChart('serviceLevelChart', 'Nível de Serviço: Tempo e Acuracidade', slData, 'line', {
+                scales: {
+                    y: {
+                        suggestedMin: 80, // Sugere um mínimo para porcentagens
+                        suggestedMax: 100
+                    }
+                }
+            });
+
+            // 3. Logística
+            const logConfig = metricConfigs['Logistica'].map(m => ({ ...m, area: 'Logistica' }));
+            const logData = createChartData(['Logistica'], logConfig);
+            renderChart('logisticsChart', 'Logística: Desvios e Produtividade', logData, 'bar');
+        }
+
+        function renderDashboard() {
+            renderKPISummary();
+            renderAllCharts();
+        }
+
+        // --- Funções de Filtro ---
+
+        function applyFilters() {
+            activeFilters.startDate = document.getElementById('start-date').value;
+            activeFilters.endDate = document.getElementById('end-date').value;
+            renderDashboard();
+            showMessage('Filtros aplicados com sucesso.');
+        }
+
+        function resetFilters() {
+            document.getElementById('start-date').value = '';
+            document.getElementById('end-date').value = '';
+            activeFilters.startDate = null;
+            activeFilters.endDate = null;
+            renderDashboard();
+            showMessage('Filtros resetados.');
+        }
+
+        // --- Funções do Modal ---
+
+        function getMetricInputHTML(key, name, currentValue = '') {
+            const isPercentage = name.includes('(%)');
+            const placeholder = isPercentage ? 'Ex: 99.5' : 'Apenas números inteiros';
+            const type = isPercentage ? 'number' : 'number';
+            const step = isPercentage ? '0.01' : '1';
+
+            return `
+                <div>
+                    <label for="input-${key}" class="block text-sm font-medium text-gray-700">${name}:</label>
+                    <input type="${type}" id="input-${key}" data-metric-key="${key}" value="${currentValue}" step="${step}" placeholder="${placeholder}"
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
+                </div>
+            `;
+        }
+
+        function setupModal() {
+            const areaSelect = document.getElementById('input-area');
+            const dateInput = document.getElementById('input-date');
+            const dynamicFieldsContainer = document.getElementById('dynamic-fields-container');
+            const observacoesInput = document.getElementById('input-observacoes');
+
+            // Limpa o modal
+            dynamicFieldsContainer.innerHTML = '';
+            dateInput.value = '';
+            observacoesInput.value = '';
+
+            areaSelect.onchange = () => {
+                const area = areaSelect.value;
+                dynamicFieldsContainer.innerHTML = '';
+                
+                if (area && metricConfigs[area]) {
+                    metricConfigs[area].forEach(metric => {
+                        dynamicFieldsContainer.innerHTML += getMetricInputHTML(metric.key, metric.name);
+                    });
+                }
+            };
+
+            dateInput.onchange = () => {
+                const area = areaSelect.value;
+                const dateKey = dateInput.value;
+
+                if (area && dateKey && allMetrics[area] && allMetrics[area][dateKey]) {
+                    const existingData = allMetrics[area][dateKey];
+                    observacoesInput.value = existingData.observacoes || '';
+
+                    // Preenche os campos com dados existentes
+                    metricConfigs[area].forEach(metric => {
+                        const input = document.getElementById(`input-${metric.key}`);
+                        if (input && existingData[metric.key] !== undefined) {
+                            input.value = existingData[metric.key];
+                        }
+                    });
+                    showMessage(`Dados para ${area} em ${dateKey} encontrados e carregados.`);
+                } else if (area) {
+                     // Limpa apenas os campos de métrica se a data for nova
+                     metricConfigs[area].forEach(metric => {
+                        const input = document.getElementById(`input-${metric.key}`);
+                        if (input) input.value = '';
+                    });
+                    observacoesInput.value = '';
+                }
+            };
+        }
+
+        // --- Início: Listener do Formulário (CORRIGIDO) ---
+
+        document.getElementById('daily-data-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const area = document.getElementById('input-area').value;
+            const data = {
+                date: document.getElementById('input-date').value,
+                observacoes: document.getElementById('input-observacoes').value
+            };
+            
+            if (!area || !data.date) {
+                showMessage('Por favor, selecione a Área e a Data.', true);
+                return;
+            }
+
+            // CORREÇÃO CRÍTICA APLICADA AQUI: Garante que valores vazios ou não-numéricos sejam tratados
+            let isValid = true;
+            document.querySelectorAll('#dynamic-fields-container input[data-metric-key]').forEach(input => {
+                // Remove espaços e substitui vírgula por ponto (para decimais)
+                const rawValue = input.value.trim().replace(',', '.'); 
+                
+                let value;
+                if (rawValue === '') {
+                    value = 0; // Trata campos vazios como zero
+                } else if (input.step === '0.01') {
+                    // Trata campos de porcentagem (decimais)
+                    value = parseFloat(rawValue);
+                } else {
+                    // Trata campos de número inteiro
+                    value = parseInt(rawValue, 10);
+                }
+
+                if (isNaN(value)) {
+                    isValid = false;
+                    // Opcional: highlight do campo
+                    input.style.borderColor = 'red';
+                } else {
+                    input.style.borderColor = ''; // Remove highlight
+                }
+                data[input.dataset.metricKey] = value;
+            });
+
+            if (!isValid) {
+                showMessage('Por favor, insira apenas números válidos (ponto ou vírgula para decimal) nos campos de métricas.', true);
+                return;
+            }
+
+            saveDataToStorage(area, data);
+        });
+
+        // --- Fim: Listener do Formulário ---
+
+
+        // --- Inicialização ---
+        window.onload = () => {
+            loadAllMetrics();
+            renderDashboard();
+            // Configura os listeners de filtro para o estado inicial
+            document.getElementById('start-date').value = activeFilters.startDate;
+            document.getElementById('end-date').value = activeFilters.endDate;
+        };
+
+    </script>
+
 </body>
 </html>
