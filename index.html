@@ -179,11 +179,16 @@
     <div id="custom-confirmation-modal" class="fixed inset-0 bg-gray-900 bg-opacity-90 z-50 hidden items-center justify-center p-4"></div>
 
     <script>
-        // --- DADOS DE EXEMPLO (MOCK DATA) AGORA VAZIOS ---
+        // --- CONFIGURAÇÃO DO GOOGLE SHEETS API ---
+        const GOOGLE_SHEETS_URL = 'https://script.google.com/a/macros/shopee.com/s/AKfycbyPIA13h6bJHGj7AMIPexksMNBxlK3GAoJ1eMrbPnBBbfgedhwdQ54ZRFDbQK9HnoM_zg/exec';
+        // ----------------------------------------
+
+        // --- DADOS DE EXEMPLO (AGORA SÓ PARA TESTE E ESTRUTURA) ---
         const MOCK_INVENTORY_DATA = [];
         const MOCK_REVERSE_DATA = [];
 
         // --- Mapeamento de Campos ---
+        // ATENÇÃO: Os 'key's devem corresponder EXATAMENTE aos cabeçalhos que você usou no Apps Script!
         const INVENTORY_FIELDS = [
             { key: 'sobraDeMotoAM', label: 'Sobra de Moto (AM)', type: 'Quantidade', group: 'sobra' },
             { key: 'sobraDeMotoPM', label: 'Sobra de Moto (PM)', type: 'Quantidade', group: 'sobra' },
@@ -219,10 +224,11 @@
             { key: 'lhsCarregadas', label: 'Saídas LH’s Carregadas (Pallets / Sacas / Papelão)', type: 'Saídas', group: 'saida' },
         ];
 
+        // allMetrics agora será carregado do Sheets na função initApp
         let allMetrics = { Inventário: [], Reversa: [] };
         let chartInstances = {};
 
-        // --- Funções de Inicialização e Cálculo ---
+        // --- Funções de Inicialização e Cálculo (Mantidas) ---
         function calculateInventario(data) {
             const totalEHA = (data.pacotesEHA_AM || 0) + (data.pacotesEHA_PM || 0);
             const totalSorting = (data.erroSortingAM || 0) + (data.erroSortingPM || 0);
@@ -234,71 +240,74 @@
         function calculateReversa(data) {
             return {};
         }
+        
+        // --- FUNÇÃO DE SALVAMENTO ATUALIZADA (ENVIO PARA O SHEETS) ---
+        async function saveDataToSheets(area, data) {
+            const saveButton = document.getElementById('save-data-btn');
+            saveButton.textContent = 'Salvando...';
+            saveButton.disabled = true;
 
-        function processMockData(area, mockData) {
-            return mockData.map(data => {
-                if (area === 'Inventário') {
-                    return { ...data, ...calculateInventario(data) };
-                } else if (area === 'Reversa') {
-                    return { ...data, ...calculateReversa(data) };
+            try {
+                // Prepara os dados do formulário para o envio
+                const formData = new URLSearchParams();
+                for (const key in data) {
+                    // Trata data e observacoes como string; métricas como número
+                    if (key === 'date' || key === 'observacoes' || key === 'area') {
+                         formData.append(key, data[key]);
+                    } else {
+                         // Garante que todos os campos numéricos sejam enviados, mesmo que vazios (Apps Script trata como 0)
+                        formData.append(key, data[key] || 0);
+                    }
                 }
-                return data;
-            });
-        }
+                formData.append('area', area);
+                
+                // Envio dos dados usando o método POST
+                const response = await fetch(GOOGLE_SHEETS_URL, {
+                    method: 'POST',
+                    body: formData
+                });
 
-        function saveDataToStorage(area, data) {
-            let areaMetrics = allMetrics[area];
-            const index = areaMetrics.findIndex(m => m.date === data.date);
-            let finalData = { ...data };
+                if (!response.ok) {
+                    throw new Error(`Erro de rede: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
 
-            if (area === 'Inventário') {
-                finalData = { ...finalData, ...calculateInventario(data) };
-            } else if (area === 'Reversa') {
-                finalData = { ...finalData, ...calculateReversa(data) };
+                if (result.status === 'success') {
+                    showMessage(`Dados de ${area} em ${data.date} salvos com sucesso no Google Sheets!`, false);
+                    document.getElementById('data-modal').classList.add('hidden');
+                    document.getElementById('data-modal').classList.remove('flex');
+                    
+                    // Atualiza a dashboard após o salvamento (A IMPLEMENTAÇÃO COMPLETA DE LEITURA VIRÁ DEPOIS)
+                    // Por enquanto, apenas recarrega o dashboard para mostrar que o formulário está funcionando.
+                    // initApp(); 
+                    
+                } else {
+                    throw new Error(result.message || 'Erro desconhecido ao salvar.');
+                }
+
+            } catch (error) {
+                showMessage(`Falha ao salvar no Google Sheets: ${error.message}`, true);
+                console.error('Erro de salvamento:', error);
+            } finally {
+                saveButton.textContent = 'Salvar Dados';
+                saveButton.disabled = false;
             }
-
-            if (index !== -1) {
-                areaMetrics[index] = finalData;
-            } else {
-                areaMetrics.push(finalData);
-            }
-
-            // CORREÇÃO: Usando a chave correta no localStorage
-            localStorage.setItem(`${area.toLowerCase()}_metrics_local`, JSON.stringify(areaMetrics));
-            allMetrics[area] = areaMetrics;
-            showMessage(`Dados de ${area} em ${data.date} salvos com sucesso!`);
-
-            document.getElementById('data-modal').classList.add('hidden');
-            document.getElementById('data-modal').classList.remove('flex');
-
-            const start = document.getElementById('start-date').value;
-            const end = document.getElementById('end-date').value;
-            loadDashboardMetrics(start, end);
-            renderHistoricalRecords(area === 'Inventário' ? 'inventory-records-list' : 'reverse-records-list', area, areaMetrics);
         }
-
+        
+        // deleteDataFromStorage foi removido, pois a exclusão exige mais complexidade no Apps Script.
+        // A edição e exclusão serão feitas diretamente na Planilha Google por enquanto.
         function deleteDataFromStorage(area, date) {
-            let areaMetrics = allMetrics[area];
-            areaMetrics = areaMetrics.filter(m => m.date !== date);
-
-            localStorage.setItem(`${area.toLowerCase()}_metrics_local`, JSON.stringify(areaMetrics));
-            allMetrics[area] = areaMetrics;
-            
-            showMessage(`Registro de ${area} em ${date} excluído com sucesso!`);
-            
-            const start = document.getElementById('start-date').value;
-            const end = document.getElementById('end-date').value;
-            loadDashboardMetrics(start, end);
-            renderHistoricalRecords(area === 'Inventário' ? 'inventory-records-list' : 'reverse-records-list', area, areaMetrics);
+            showMessage(`A exclusão de dados é temporariamente manual e deve ser feita diretamente na Planilha Google.`, true);
         }
 
-        // --- Funções de UI ---
+        // --- Funções de UI (Mantidas) ---
         function showMessage(message, isError = false) {
             const el = document.getElementById('system-message');
             el.textContent = message;
             el.classList.remove('hidden', 'bg-red-600', 'bg-green-600');
             el.classList.add(isError ? 'bg-red-600' : 'bg-green-600');
-            setTimeout(() => el.classList.add('hidden'), 5000);
+            setTimeout(() => el.classList.add('hidden'), 8000); // Aumenta o tempo para avisos do Sheets
         }
 
         function formatDate(date) {
@@ -326,11 +335,9 @@
             const fields = area === 'Inventário' ? INVENTORY_FIELDS : REVERSE_FIELDS;
 
             fields.forEach(field => {
-                // Se o valor inicial for 0, use string vazia para o placeholder, senão use o valor
                 const value = initialData[field.key] !== undefined ? initialData[field.key] : '';
                 const div = document.createElement('div');
                 div.className = 'w-full';
-                // Removido required=true do input type="number" para permitir campos vazios (que serão tratados como 0)
                 div.innerHTML = `<label for="input-${field.key}" class="block text-sm font-medium text-gray-300">${field.label} <span class="text-xs text-gray-500">(${field.type})</span></label><input type="number" min="0" value="${value}" placeholder="0" class="mt-1 block w-full p-3 border rounded-lg focus:ring-shopee focus:border-shopee" data-metric-key="${field.key}">`;
                 container.appendChild(div);
             });
@@ -347,12 +354,14 @@
         function renderHistoricalRecords(containerId, area, metrics) {
             const listContainer = document.getElementById(containerId);
             listContainer.innerHTML = '';
-            const sortedMetrics = metrics.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-            if (sortedMetrics.length === 0) {
-                listContainer.innerHTML = '<p class="text-gray-400">Nenhum registro encontrado.</p>';
+            
+            if (metrics.length === 0) {
+                listContainer.innerHTML = '<p class="text-gray-400">Nenhum registro encontrado (Carregando do Sheets na versão final).</p>';
                 return;
             }
+            
+            // O restante da função renderHistoricalRecords está aqui (mantida a lógica de exibição, mas sem dados reais por enquanto)
+            const sortedMetrics = metrics.sort((a, b) => new Date(b.date) - new Date(a.date));
 
             sortedMetrics.forEach(metric => {
                 let mainMetricDisplay = '';
@@ -369,36 +378,14 @@
                 }
 
                 const div = document.createElement('div');
+                // Removemos os botões Editar/Excluir temporariamente pois dependem de uma API de leitura e escrita mais complexa no Sheets.
                 div.className = 'flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 card rounded-lg border border-gray-600';
-                div.innerHTML = `<div class="mb-2 sm:mb-0"><span class="font-semibold text-gray-200">${metric.date}</span><span class="ml-4 ${mainMetricColor} font-bold">${mainMetricDisplay}</span></div><div class="space-x-2 flex"><button data-date="${metric.date}" data-area="${area}" class="edit-btn text-shopee hover:text-orange-400 font-medium">Editar</button><button data-date="${metric.date}" data-area="${area}" class="delete-btn text-red-400 hover:text-red-300 font-medium">Excluir</button></div>`;
+                div.innerHTML = `<div class="mb-2 sm:mb-0"><span class="font-semibold text-gray-200">${metric.date}</span><span class="ml-4 ${mainMetricColor} font-bold">${mainMetricDisplay}</span></div><div class="space-x-2 flex"><p class="text-gray-500 text-sm">Salvo no Sheets</p></div>`;
                 listContainer.appendChild(div);
             });
-
-            // Adicionando event listeners após a renderização
-            listContainer.querySelectorAll('.edit-btn').forEach(button => {
-                button.addEventListener('click', (e) => editRecord(e.target.dataset.area, e.target.dataset.date));
-            });
-
-            listContainer.querySelectorAll('.delete-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const area = e.target.dataset.area;
-                    const date = e.target.dataset.date;
-                    showCustomConfirmation(`Tem certeza que deseja EXCLUIR o registro de ${area} em ${date}?`, () => deleteDataFromStorage(area, date));
-                });
-            });
         }
-
-        function editRecord(area, date) {
-            const record = allMetrics[area].find(m => m.date === date);
-            if (!record) { showMessage(`Registro de ${area} em ${date} não encontrado.`, true); return; }
-            
-            document.getElementById('modal-title').textContent = `Editando Dados de ${area} em ${date}`;
-            document.getElementById('input-area').value = area;
-            document.getElementById('input-area').disabled = true;
-            document.getElementById('input-date').value = date;
-            renderForm(area, record);
-            openDataModal(area, record);
-        }
+        
+        // editRecord foi removido, pois a edição exige mais complexidade no Apps Script.
 
         function openDataModal(area = 'Inventário', data = {}) {
             if (!data.date) {
@@ -436,6 +423,8 @@
             }
         }
 
+        // loadDashboardMetrics e as funções de cálculo de KPI/Chart dependem da função fetchAllData
+        // Que virá no próximo passo, por enquanto, elas só renderizam o MOCK vazio.
         function loadDashboardMetrics(startDate, endDate) {
             const inventarioMetrics = allMetrics.Inventário.filter(m => m.date >= startDate && m.date <= endDate);
             const reversaMetrics = allMetrics.Reversa.filter(m => m.date >= startDate && m.date <= endDate);
@@ -444,90 +433,94 @@
             renderDashboardCharts(inventarioMetrics, reversaMetrics);
         }
 
-        // --- FUNÇÃO KPI's ---
+        // As funções de cálculo de KPI e Chart foram mantidas, usando a estrutura do seu código anterior.
+
         function calculateAndRenderKPIs(inventarioMetrics, reversaMetrics) {
             const container = document.getElementById('kpi-dashboard-container');
-            container.innerHTML = '';
-
-            // --- CÁLCULOS DE INVENTÁRIO ---
-            const totalDesvios = inventarioMetrics.reduce((sum, m) => sum + (m.desviosExpedicao || 0), 0);
-            
-            // Totais para detalhamento AM/PM
-            const totalEHA = inventarioMetrics.reduce((sum, m) => sum + (m.pacotesEHA_AM || 0) + (m.pacotesEHA_PM || 0), 0);
-            const totalSortingErros = inventarioMetrics.reduce((sum, m) => sum + (m.erroSortingAM || 0) + (m.erroSortingPM || 0), 0);
-            const totalAvariadosRecebidos = inventarioMetrics.reduce((sum, m) => sum + (m.totalAvariadosRecebidosAM || 0) + (m.totalAvariadosRecebidosPM || 0), 0);
-            const totalErroEtiqueta = inventarioMetrics.reduce((sum, m) => sum + (m.erroEtiquetaAM || 0) + (m.erroEtiquetaPM || 0), 0);
-            
-            const totalAvariadosHUB = inventarioMetrics.reduce((sum, m) => sum + (m.avariadosHUB || 0), 0);
-            const totalAvariadosSOC = inventarioMetrics.reduce((sum, m) => sum + (m.avariadosSOC || 0), 0);
-            const totalPacotesRecuperados = inventarioMetrics.reduce((sum, m) => sum + (m.pacotesRecuperados || 0), 0);
-            
-            const latestInventarioBacklog = inventarioMetrics.length > 0 ? inventarioMetrics.sort((a, b) => new Date(b.date) - new Date(a.date))[0].backlogInventario || 0 : 0;
-
-
-            // FUNÇÕES PARA DETALHE AM/PM
-            const detailEHA = inventarioMetrics.length > 0 ? 
-                `(${inventarioMetrics.reduce((sum, m) => sum + (m.pacotesEHA_AM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.pacotesEHA_PM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
-
-            const detailSorting = inventarioMetrics.length > 0 ? 
-                `(${inventarioMetrics.reduce((sum, m) => sum + (m.erroSortingAM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.erroSortingPM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
-
-            const detailAvarias = inventarioMetrics.length > 0 ? 
-                `(${inventarioMetrics.reduce((sum, m) => sum + (m.totalAvariadosRecebidosAM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.totalAvariadosRecebidosPM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
-
-            const detailErroEtiqueta = inventarioMetrics.length > 0 ? 
-                `(${inventarioMetrics.reduce((sum, m) => sum + (m.erroEtiquetaAM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.erroEtiquetaPM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
-
-
-            // --- CÁLCULOS DE REVERSA ---
-            const totalInsucessos = reversaMetrics.reduce((sum, m) => sum + (m.insucessosRecebidos || 0), 0);
-            const totalLHsRecebidas = reversaMetrics.reduce((sum, m) => sum + (m.lhsRecebidas || 0), 0);
-            const totalPacotesDescarregados = reversaMetrics.reduce((sum, m) => sum + (m.totalPacotesDescarregados || 0), 0);
-            const avgPacotesPorLH = totalLHsRecebidas > 0 ? (totalPacotesDescarregados / totalLHsRecebidas) : 0;
-
-            // --- DEFINIÇÃO DOS KPIS ---
-            const kpis = [
-                // 1. INVENTÁRIO (VOLUME & ERROS CRÍTICOS)
-                { name: 'Pacotes EHA (Entrada)', value: totalEHA.toLocaleString('pt-BR'), detail: detailEHA, color: 'bg-blue-700', sub: 'Inventário - Volume Base' },
-                { name: 'Sorting Erros (Período)', value: totalSortingErros.toLocaleString('pt-BR'), detail: detailSorting, color: 'bg-red-700', sub: 'Inventário - Erro Classificação' },
-                { name: 'Erros Etiqueta Errada', value: totalErroEtiqueta.toLocaleString('pt-BR'), detail: detailErroEtiqueta, color: 'bg-red-700', sub: 'Inventário - Erro Etiqueta' },
-                { name: 'Desvios Expedição', value: totalDesvios.toLocaleString('pt-BR'), detail: '', color: 'bg-red-700', sub: 'Inventário - Crítico' },
-                { name: 'Backlog (Inventário)', value: latestInventarioBacklog.toLocaleString('pt-BR'), detail: '', color: latestInventarioBacklog > 0 ? 'accent-shopee' : 'bg-green-600', sub: 'Inventário - Status Atual' },
+            container.innerHTML = inventarioMetrics.length === 0 ? '<p class="text-gray-400">Dados não carregados. Por favor, insira um registro.</p>' : '';
+            // Restante da lógica KPI (mantida, mas só roda com dados)
+            if (inventarioMetrics.length > 0 || reversaMetrics.length > 0) {
+                // --- CÁLCULOS DE INVENTÁRIO ---
+                const totalDesvios = inventarioMetrics.reduce((sum, m) => sum + (m.desviosExpedicao || 0), 0);
                 
-                // 2. REVERSA (STATUS & VOLUME)
-                { name: 'Insucessos Recebidos', value: totalInsucessos.toLocaleString('pt-BR'), detail: '', color: 'bg-indigo-600', sub: 'Reversa - Volume Processado' },
-                { name: 'LH’s Recebidas', value: totalLHsRecebidas.toLocaleString('pt-BR'), detail: '', color: 'bg-gray-600', sub: 'Reversa - Entrada Carretas' },
-                { name: 'Pacotes Descarregados', value: totalPacotesDescarregados.toLocaleString('pt-BR'), detail: '', color: 'bg-gray-600', sub: 'Reversa - Volume por LH' },
-                { name: 'Pacotes / LH (Média)', value: avgPacotesPorLH.toFixed(0).toLocaleString('pt-BR'), detail: '', color: 'bg-gray-600', sub: 'Reversa - Média por Carreta' },
+                const totalEHA = inventarioMetrics.reduce((sum, m) => sum + (m.pacotesEHA_AM || 0) + (m.pacotesEHA_PM || 0), 0);
+                const totalSortingErros = inventarioMetrics.reduce((sum, m) => sum + (m.erroSortingAM || 0) + (m.erroSortingPM || 0), 0);
+                const totalAvariadosRecebidos = inventarioMetrics.reduce((sum, m) => sum + (m.totalAvariadosRecebidosAM || 0) + (m.totalAvariadosRecebidosPM || 0), 0);
+                const totalErroEtiqueta = inventarioMetrics.reduce((sum, m) => sum + (m.erroEtiquetaAM || 0) + (m.erroEtiquetaPM || 0), 0);
                 
-                // 3. INVENTÁRIO (AVARIAS E RECUPERAÇÃO)
-                { name: 'Avariados Recebidos', value: totalAvariadosRecebidos.toLocaleString('pt-BR'), detail: detailAvarias, color: 'bg-yellow-700', sub: 'Inventário - Total de Avarias' },
-                { name: 'Avariados HUB (Responsabilidade)', value: totalAvariadosHUB.toLocaleString('pt-BR'), detail: '', color: 'bg-red-800', sub: 'Inventário - HUB Share' },
-                { name: 'Avariados SOC (Responsabilidade)', value: totalAvariadosSOC.toLocaleString('pt-BR'), detail: '', color: 'bg-red-800', sub: 'Inventário - SOC Share' },
-                { name: 'Pacotes Recuperados (Salvamento)', value: totalPacotesRecuperados.toLocaleString('pt-BR'), detail: '', color: 'bg-green-700', sub: 'Inventário - Volume Salvo' }
-            ];
+                const totalAvariadosHUB = inventarioMetrics.reduce((sum, m) => sum + (m.avariadosHUB || 0), 0);
+                const totalAvariadosSOC = inventarioMetrics.reduce((sum, m) => sum + (m.avariadosSOC || 0), 0);
+                const totalPacotesRecuperados = inventarioMetrics.reduce((sum, m) => sum + (m.pacotesRecuperados || 0), 0);
+                
+                const latestInventarioBacklog = inventarioMetrics.length > 0 ? inventarioMetrics.sort((a, b) => new Date(b.date) - new Date(a.date))[0].backlogInventario || 0 : 0;
 
-            // Renderiza os KPIs
-            container.style.gridTemplateColumns = `repeat(${Math.min(kpis.length, 5)}, 1fr)`; // Ajusta o grid para 5 colunas se houver mais de 5 KPIs
 
-            kpis.forEach(kpi => {
-                const card = document.createElement('div');
-                card.className = `card ${kpi.color} p-5 rounded-xl shadow-lg flex flex-col justify-between`;
-                card.innerHTML = `
-                    <p class="text-sm font-medium opacity-90">${kpi.name}</p>
-                    <p class="text-xs text-gray-200 mt-1 mb-2">${kpi.sub}</p>
-                    <p class="text-4xl font-bold text-white">${kpi.value}</p>
-                    ${kpi.detail ? `<p class="text-xs text-white opacity-70 mt-1">${kpi.detail}</p>` : ''}
-                `;
-                container.appendChild(card);
-            });
+                // FUNÇÕES PARA DETALHE AM/PM
+                const detailEHA = inventarioMetrics.length > 0 ? 
+                    `(${inventarioMetrics.reduce((sum, m) => sum + (m.pacotesEHA_AM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.pacotesEHA_PM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
+
+                const detailSorting = inventarioMetrics.length > 0 ? 
+                    `(${inventarioMetrics.reduce((sum, m) => sum + (m.erroSortingAM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.erroSortingPM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
+
+                const detailAvarias = inventarioMetrics.length > 0 ? 
+                    `(${inventarioMetrics.reduce((sum, m) => sum + (m.totalAvariadosRecebidosAM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.totalAvariadosRecebidosPM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
+
+                const detailErroEtiqueta = inventarioMetrics.length > 0 ? 
+                    `(${inventarioMetrics.reduce((sum, m) => sum + (m.erroEtiquetaAM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.erroEtiquetaPM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
+
+
+                // --- CÁLCULOS DE REVERSA ---
+                const totalInsucessos = reversaMetrics.reduce((sum, m) => sum + (m.insucessosRecebidos || 0), 0);
+                const totalLHsRecebidas = reversaMetrics.reduce((sum, m) => sum + (m.lhsRecebidas || 0), 0);
+                const totalPacotesDescarregados = reversaMetrics.reduce((sum, m) => sum + (m.totalPacotesDescarregados || 0), 0);
+                const avgPacotesPorLH = totalLHsRecebidas > 0 ? (totalPacotesDescarregados / totalLHsRecebidas) : 0;
+
+                // --- DEFINIÇÃO DOS KPIS ---
+                const kpis = [
+                    // 1. INVENTÁRIO (VOLUME & ERROS CRÍTICOS)
+                    { name: 'Pacotes EHA (Entrada)', value: totalEHA.toLocaleString('pt-BR'), detail: detailEHA, color: 'bg-blue-700', sub: 'Inventário - Volume Base' },
+                    { name: 'Sorting Erros (Período)', value: totalSortingErros.toLocaleString('pt-BR'), detail: detailSorting, color: 'bg-red-700', sub: 'Inventário - Erro Classificação' },
+                    { name: 'Erros Etiqueta Errada', value: totalErroEtiqueta.toLocaleString('pt-BR'), detail: detailErroEtiqueta, color: 'bg-red-700', sub: 'Inventário - Erro Etiqueta' },
+                    { name: 'Desvios Expedição', value: totalDesvios.toLocaleString('pt-BR'), detail: '', color: 'bg-red-700', sub: 'Inventário - Crítico' },
+                    { name: 'Backlog (Inventário)', value: latestInventarioBacklog.toLocaleString('pt-BR'), detail: '', color: latestInventarioBacklog > 0 ? 'accent-shopee' : 'bg-green-600', sub: 'Inventário - Status Atual' },
+                    
+                    // 2. REVERSA (STATUS & VOLUME)
+                    { name: 'Insucessos Recebidos', value: totalInsucessos.toLocaleString('pt-BR'), detail: '', color: 'bg-indigo-600', sub: 'Reversa - Volume Processado' },
+                    { name: 'LH’s Recebidas', value: totalLHsRecebidas.toLocaleString('pt-BR'), detail: '', color: 'bg-gray-600', sub: 'Reversa - Entrada Carretas' },
+                    { name: 'Pacotes Descarregados', value: totalPacotesDescarregados.toLocaleString('pt-BR'), detail: '', color: 'bg-gray-600', sub: 'Reversa - Volume por LH' },
+                    { name: 'Pacotes / LH (Média)', value: avgPacotesPorLH.toFixed(0).toLocaleString('pt-BR'), detail: '', color: 'bg-gray-600', sub: 'Reversa - Média por Carreta' },
+                    
+                    // 3. INVENTÁRIO (AVARIAS E RECUPERAÇÃO)
+                    { name: 'Avariados Recebidos', value: totalAvariadosRecebidos.toLocaleString('pt-BR'), detail: detailAvarias, color: 'bg-yellow-700', sub: 'Inventário - Total de Avarias' },
+                    { name: 'Avariados HUB (Responsabilidade)', value: totalAvariadosHUB.toLocaleString('pt-BR'), detail: '', color: 'bg-red-800', sub: 'Inventário - HUB Share' },
+                    { name: 'Avariados SOC (Responsabilidade)', value: totalAvariadosSOC.toLocaleString('pt-BR'), detail: '', color: 'bg-red-800', sub: 'Inventário - SOC Share' },
+                    { name: 'Pacotes Recuperados (Salvamento)', value: totalPacotesRecuperados.toLocaleString('pt-BR'), detail: '', color: 'bg-green-700', sub: 'Inventário - Volume Salvo' }
+                ];
+
+                // Renderiza os KPIs
+                container.style.gridTemplateColumns = `repeat(${Math.min(kpis.length, 5)}, 1fr)`;
+
+                kpis.forEach(kpi => {
+                    const card = document.createElement('div');
+                    card.className = `card ${kpi.color} p-5 rounded-xl shadow-lg flex flex-col justify-between`;
+                    card.innerHTML = `
+                        <p class="text-sm font-medium opacity-90">${kpi.name}</p>
+                        <p class="text-xs text-gray-200 mt-1 mb-2">${kpi.sub}</p>
+                        <p class="text-4xl font-bold text-white">${kpi.value}</p>
+                        ${kpi.detail ? `<p class="text-xs text-white opacity-70 mt-1">${kpi.detail}</p>` : ''}
+                    `;
+                    container.appendChild(card);
+                });
+            }
         }
-
-        // --- FUNÇÃO CHART ATUALIZADA ---
+        
         function renderDashboardCharts(inventarioMetrics, reversaMetrics) {
             Object.values(chartInstances).forEach(instance => instance.destroy());
             chartInstances = {};
 
+            if (inventarioMetrics.length === 0 && reversaMetrics.length === 0) return;
+            
+            // ... Restante da lógica de renderização de gráficos (mantida) ...
             const chartGlobalOptions = {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -545,7 +538,7 @@
 
             // GRÁFICO 1: Erros Sorting
             const ctx1 = document.getElementById('sortingChart')?.getContext('2d');
-            if (ctx1) {
+            if (ctx1 && sortedInv.length > 0) {
                 chartInstances.sortingChart = new Chart(ctx1, {
                     type: 'line',
                     data: {
@@ -565,7 +558,7 @@
 
             // GRÁFICO 2: Desvios
             const ctx2 = document.getElementById('desviosChart')?.getContext('2d');
-            if (ctx2) {
+            if (ctx2 && sortedInv.length > 0) {
                 chartInstances.desviosChart = new Chart(ctx2, {
                     type: 'bar',
                     data: {
@@ -582,7 +575,7 @@
 
             // GRÁFICO 3: Insucessos Reversa
             const ctx3 = document.getElementById('insucessosChart')?.getContext('2d');
-            if (ctx3) {
+            if (ctx3 && sortedRev.length > 0) {
                 chartInstances.insucessosChart = new Chart(ctx3, {
                     type: 'line',
                     data: {
@@ -602,8 +595,7 @@
 
             // GRÁFICO 4: Backlog Inventário (Progressão)
             const ctx4 = document.getElementById('backlogChart')?.getContext('2d');
-            if (ctx4) {
-                // Remove o parágrafo de placeholder se existir (embora o HTML tenha sido limpo)
+            if (ctx4 && sortedInv.length > 0) {
                 document.querySelector('#backlogChart').closest('.flex-col').querySelector('p')?.remove();
                 chartInstances.backlogChart = new Chart(ctx4, {
                     type: 'line',
@@ -622,19 +614,28 @@
                 });
             }
         }
+        
+        // --- FUNÇÃO DE CARREGAMENTO DE DADOS (AGORA DO SHEETS, MAS VAZIA) ---
+        async function fetchAllData() {
+            // Este é o passo que falta! Por enquanto, usamos MOCK vazio.
+            // A leitura de dados do Sheets exige um novo App Script de GET,
+            // que será implementado no próximo passo.
+            allMetrics.Inventário = [];
+            allMetrics.Reversa = [];
 
-        // --- Função de Inicialização principal ---
-        function initApp() {
-            let invData = localStorage.getItem('inventory_metrics_local');
-            let revData = localStorage.getItem('reverse_metrics_local');
-
-            allMetrics.Inventário = invData ? JSON.parse(invData) : [];
-            allMetrics.Reversa = revData ? JSON.parse(revData) : [];
-
-            // Garante que todos os dados tenham os campos calculados atualizados
+            // Adiciona um dado de teste, se quiser visualizar a dashboard
+            // allMetrics.Inventário.push({ date: formatDate(new Date()), ...INVENTORY_FIELDS.reduce((acc, f) => ({ ...acc, [f.key]: 10 }), {}), observacoes: 'Teste' });
+            
+            // Re-calcula as métricas após carregar/simular os dados
             allMetrics.Inventário = allMetrics.Inventário.map(m => ({ ...m, ...calculateInventario(m) }));
             allMetrics.Reversa = allMetrics.Reversa.map(m => ({ ...m, ...calculateReversa(m) }));
+        }
 
+        // --- Função de Inicialização principal ---
+        async function initApp() {
+            // Primeiro, tenta carregar os dados (que por enquanto, virão vazios/mocked)
+            await fetchAllData(); 
+            
             const today = formatDate(new Date());
             const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
@@ -646,6 +647,8 @@
             renderHistoricalRecords('reverse-records-list', 'Reversa', allMetrics.Reversa);
             
             setupListeners();
+
+            showMessage("⚠️ Alerta: O salvamento está configurado para o Google Sheets, mas a leitura (visão dos dados antigos) ainda está vazia. Insira um novo registro para testar o salvamento.", false);
         }
 
         function setupListeners() {
@@ -668,41 +671,28 @@
 
             document.getElementById('input-area').addEventListener('change', (e) => renderForm(e.target.value, {}));
             
-            // --- CORREÇÃO DO LISTENER DE SUBMISSÃO APLICADA AQUI ---
+            // --- LISTENER DE SUBMISSÃO (CHAMA A NOVA FUNÇÃO DE SALVAMENTO) ---
             document.getElementById('daily-data-form').addEventListener('submit', (e) => {
                 e.preventDefault();
                 
                 const area = document.getElementById('input-area').value;
                 const data = {
                     date: document.getElementById('input-date').value,
-                    observacoes: document.getElementById('input-observacoes').value
+                    observacoes: document.getElementById('input-observacoes').value,
+                    area: area // Adiciona a área para a planilha
                 };
 
-                let isValid = true;
-
                 document.querySelectorAll('#dynamic-fields-container input[data-metric-key]').forEach(input => {
-                    // TRATAMENTO CRÍTICO: Se o campo estiver vazio (''), use '0', senão use o valor do input.
-                    // Isso garante que parseInt não retorne NaN quando o campo estiver vazio.
+                    // Trata campos vazios como 0 antes de enviar.
                     const inputValue = input.value.trim() === '' ? '0' : input.value;
-                    const value = parseInt(inputValue, 10);
-                    
-                    if (isNaN(value)) {
-                        isValid = false;
-                        input.style.borderColor = 'red';
-                    } else {
-                        input.style.borderColor = '';
-                    }
+                    const value = parseInt(inputValue, 10) || 0; // Garante que seja um número ou 0
                     data[input.dataset.metricKey] = value;
                 });
 
-                if (!isValid) {
-                    showMessage('Por favor, insira apenas números inteiros válidos nos campos de métricas. Campos vazios foram tratados como 0.', true);
-                    return;
-                }
-
-                saveDataToStorage(area, data);
+                // Chama a nova função de salvamento do Sheets
+                saveDataToSheets(area, data);
             });
-            // --- FIM DA CORREÇÃO ---
+            // --- FIM DO LISTENER DE SUBMISSÃO ---
 
             document.getElementById('dynamic-fields-container').addEventListener('input', updateCalculations);
         }
