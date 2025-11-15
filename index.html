@@ -228,8 +228,7 @@
             const totalSorting = (data.erroSortingAM || 0) + (data.erroSortingPM || 0);
             const totalAvarias = (data.totalAvariadosRecebidosAM || 0) + (data.totalAvariadosRecebidosPM || 0);
             const totalErroEtiqueta = (data.erroEtiquetaAM || 0) + (data.erroEtiquetaPM || 0);
-            
-            return { totalEHA, totalSorting, totalAvarias, totalErroEtiqueta }; 
+            return { totalEHA, totalSorting, totalAvarias, totalErroEtiqueta };
         }
 
         function calculateReversa(data) {
@@ -264,6 +263,7 @@
                 areaMetrics.push(finalData);
             }
 
+            // CORREÇÃO: Usando a chave correta no localStorage
             localStorage.setItem(`${area.toLowerCase()}_metrics_local`, JSON.stringify(areaMetrics));
             allMetrics[area] = areaMetrics;
             showMessage(`Dados de ${area} em ${data.date} salvos com sucesso!`);
@@ -280,7 +280,7 @@
         function deleteDataFromStorage(area, date) {
             let areaMetrics = allMetrics[area];
             areaMetrics = areaMetrics.filter(m => m.date !== date);
-            
+
             localStorage.setItem(`${area.toLowerCase()}_metrics_local`, JSON.stringify(areaMetrics));
             allMetrics[area] = areaMetrics;
             
@@ -292,7 +292,7 @@
             renderHistoricalRecords(area === 'Inventário' ? 'inventory-records-list' : 'reverse-records-list', area, areaMetrics);
         }
 
-        // --- Funções de UI (sem alteração) ---
+        // --- Funções de UI ---
         function showMessage(message, isError = false) {
             const el = document.getElementById('system-message');
             el.textContent = message;
@@ -326,11 +326,12 @@
             const fields = area === 'Inventário' ? INVENTORY_FIELDS : REVERSE_FIELDS;
 
             fields.forEach(field => {
-                const value = initialData[field.key] !== undefined ? initialData[field.key] : 0;
+                // Se o valor inicial for 0, use string vazia para o placeholder, senão use o valor
+                const value = initialData[field.key] !== undefined ? initialData[field.key] : '';
                 const div = document.createElement('div');
                 div.className = 'w-full';
-                // Adicionado required=false pois o tratamento de 0 ou vazio será feito no submit
-                div.innerHTML = `<label for="input-${field.key}" class="block text-sm font-medium text-gray-300">${field.label} <span class="text-xs text-gray-500">(${field.type})</span></label><input type="number" min="0" value="${value}" class="mt-1 block w-full p-3 border rounded-lg focus:ring-shopee focus:border-shopee" data-metric-key="${field.key}">`;
+                // Removido required=true do input type="number" para permitir campos vazios (que serão tratados como 0)
+                div.innerHTML = `<label for="input-${field.key}" class="block text-sm font-medium text-gray-300">${field.label} <span class="text-xs text-gray-500">(${field.type})</span></label><input type="number" min="0" value="${value}" placeholder="0" class="mt-1 block w-full p-3 border rounded-lg focus:ring-shopee focus:border-shopee" data-metric-key="${field.key}">`;
                 container.appendChild(div);
             });
 
@@ -443,7 +444,7 @@
             renderDashboardCharts(inventarioMetrics, reversaMetrics);
         }
 
-        // --- FUNÇÃO KPI's (sem alteração) ---
+        // --- FUNÇÃO KPI's ---
         function calculateAndRenderKPIs(inventarioMetrics, reversaMetrics) {
             const container = document.getElementById('kpi-dashboard-container');
             container.innerHTML = '';
@@ -522,16 +523,16 @@
             });
         }
 
-        // --- FUNÇÃO CHART ATUALIZADA (Adiciona o Gráfico de Backlog Inventário) ---
+        // --- FUNÇÃO CHART ATUALIZADA ---
         function renderDashboardCharts(inventarioMetrics, reversaMetrics) {
             Object.values(chartInstances).forEach(instance => instance.destroy());
             chartInstances = {};
 
             const chartGlobalOptions = {
-                responsive: true, 
+                responsive: true,
                 maintainAspectRatio: false,
-                plugins: { 
-                    legend: { labels: { color: '#e5e7eb' } } 
+                plugins: {
+                    legend: { labels: { color: '#e5e7eb' } }
                 },
                 scales: {
                     x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
@@ -547,16 +548,16 @@
             if (ctx1) {
                 chartInstances.sortingChart = new Chart(ctx1, {
                     type: 'line',
-                    data: { 
-                        labels: sortedInv.map(m => m.date), 
-                        datasets: [{ 
-                            label: 'Erros Sorting (AM + PM)', 
-                            data: sortedInv.map(m => m.totalSorting), 
-                            borderColor: '#FF5C00', 
-                            backgroundColor: 'rgba(255, 92, 0, 0.3)', 
-                            fill: true, 
-                            tension: 0.4 
-                        }] 
+                    data: {
+                        labels: sortedInv.map(m => m.date),
+                        datasets: [{
+                            label: 'Erros Sorting (AM + PM)',
+                            data: sortedInv.map(m => m.totalSorting),
+                            borderColor: '#FF5C00',
+                            backgroundColor: 'rgba(255, 92, 0, 0.3)',
+                            fill: true,
+                            tension: 0.4
+                        }]
                     },
                     options: chartGlobalOptions
                 });
@@ -567,13 +568,13 @@
             if (ctx2) {
                 chartInstances.desviosChart = new Chart(ctx2, {
                     type: 'bar',
-                    data: { 
-                        labels: sortedInv.map(m => m.date), 
-                        datasets: [{ 
-                            label: 'Desvios de Expedição', 
-                            data: sortedInv.map(m => m.desviosExpedicao), 
-                            backgroundColor: '#dc2626' 
-                        }] 
+                    data: {
+                        labels: sortedInv.map(m => m.date),
+                        datasets: [{
+                            label: 'Desvios de Expedição',
+                            data: sortedInv.map(m => m.desviosExpedicao),
+                            backgroundColor: '#dc2626'
+                        }]
                     },
                     options: chartGlobalOptions
                 });
@@ -584,16 +585,16 @@
             if (ctx3) {
                 chartInstances.insucessosChart = new Chart(ctx3, {
                     type: 'line',
-                    data: { 
-                        labels: sortedRev.map(m => m.date), 
-                        datasets: [{ 
-                            label: 'Insucessos Recebidos', 
-                            data: sortedRev.map(m => m.insucessosRecebidos), 
-                            borderColor: '#818cf8', 
-                            backgroundColor: 'rgba(129, 140, 248, 0.3)', 
-                            fill: true, 
-                            tension: 0.4 
-                        }] 
+                    data: {
+                        labels: sortedRev.map(m => m.date),
+                        datasets: [{
+                            label: 'Insucessos Recebidos',
+                            data: sortedRev.map(m => m.insucessosRecebidos),
+                            borderColor: '#818cf8',
+                            backgroundColor: 'rgba(129, 140, 248, 0.3)',
+                            fill: true,
+                            tension: 0.4
+                        }]
                     },
                     options: chartGlobalOptions
                 });
@@ -602,18 +603,20 @@
             // GRÁFICO 4: Backlog Inventário (Progressão)
             const ctx4 = document.getElementById('backlogChart')?.getContext('2d');
             if (ctx4) {
+                // Remove o parágrafo de placeholder se existir (embora o HTML tenha sido limpo)
+                document.querySelector('#backlogChart').closest('.flex-col').querySelector('p')?.remove();
                 chartInstances.backlogChart = new Chart(ctx4, {
                     type: 'line',
-                    data: { 
-                        labels: sortedInv.map(m => m.date), 
-                        datasets: [{ 
-                            label: 'Backlog Inventário (Pendências)', 
-                            data: sortedInv.map(m => m.backlogInventario), 
-                            borderColor: '#FF5C00', 
-                            backgroundColor: 'rgba(255, 92, 0, 0.3)', 
-                            fill: true, 
-                            tension: 0.4 
-                        }] 
+                    data: {
+                        labels: sortedInv.map(m => m.date),
+                        datasets: [{
+                            label: 'Backlog Inventário (Pendências)',
+                            data: sortedInv.map(m => m.backlogInventario),
+                            borderColor: '#FF5C00',
+                            backgroundColor: 'rgba(255, 92, 0, 0.3)',
+                            fill: true,
+                            tension: 0.4
+                        }]
                     },
                     options: chartGlobalOptions
                 });
@@ -628,7 +631,7 @@
             allMetrics.Inventário = invData ? JSON.parse(invData) : [];
             allMetrics.Reversa = revData ? JSON.parse(revData) : [];
 
-            // Garante que todos os dados tenham os campos calculados atualizados 
+            // Garante que todos os dados tenham os campos calculados atualizados
             allMetrics.Inventário = allMetrics.Inventário.map(m => ({ ...m, ...calculateInventario(m) }));
             allMetrics.Reversa = allMetrics.Reversa.map(m => ({ ...m, ...calculateReversa(m) }));
 
@@ -665,24 +668,23 @@
 
             document.getElementById('input-area').addEventListener('change', (e) => renderForm(e.target.value, {}));
             
-            // --- LISTENER DO FORMULÁRIO (CORREÇÃO APLICADA AQUI) ---
+            // --- CORREÇÃO DO LISTENER DE SUBMISSÃO APLICADA AQUI ---
             document.getElementById('daily-data-form').addEventListener('submit', (e) => {
                 e.preventDefault();
+                
                 const area = document.getElementById('input-area').value;
                 const data = {
                     date: document.getElementById('input-date').value,
                     observacoes: document.getElementById('input-observacoes').value
                 };
 
-                if (!area || !data.date) {
-                    showMessage('Por favor, selecione a Área e a Data.', true);
-                    return;
-                }
-                
                 let isValid = true;
+
                 document.querySelectorAll('#dynamic-fields-container input[data-metric-key]').forEach(input => {
-                    // Tenta ler como inteiro, tratando strings vazias como 0
-                    const value = input.value.trim() === '' ? 0 : parseInt(input.value, 10);
+                    // TRATAMENTO CRÍTICO: Se o campo estiver vazio (''), use '0', senão use o valor do input.
+                    // Isso garante que parseInt não retorne NaN quando o campo estiver vazio.
+                    const inputValue = input.value.trim() === '' ? '0' : input.value;
+                    const value = parseInt(inputValue, 10);
                     
                     if (isNaN(value)) {
                         isValid = false;
@@ -694,7 +696,7 @@
                 });
 
                 if (!isValid) {
-                    showMessage('Por favor, insira apenas números inteiros válidos nos campos de métricas.', true);
+                    showMessage('Por favor, insira apenas números inteiros válidos nos campos de métricas. Campos vazios foram tratados como 0.', true);
                     return;
                 }
 
