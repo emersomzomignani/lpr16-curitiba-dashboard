@@ -120,17 +120,17 @@
 
         <div id="inventory-content" class="tab-content hidden">
             <h2 class="text-2xl font-bold text-gray-100 mb-4">📦 Histórico de Registros de Inventário</h2>
-            <p class="mb-4 text-gray-400">Clique em "Inserir/Editar Dados" para adicionar um novo registro, ou clique em um registro abaixo para editar/excluir.</p>
+            <p class="mb-4 text-gray-400">Clique em "Inserir/Editar Dados" para adicionar um novo registro. A edição/exclusão deve ser feita diretamente na Planilha Google.</p>
             <div id="inventory-records-list" class="space-y-3">
-                <p class="text-gray-400">Nenhum registro encontrado.</p>
+                <p class="text-gray-400">Carregando histórico...</p>
             </div>
         </div>
 
         <div id="reverse-content" class="tab-content hidden">
             <h2 class="text-2xl font-bold text-gray-100 mb-4">🔁 Histórico de Registros de Reversa</h2>
-            <p class="mb-4 text-gray-400">Clique em "Inserir/Editar Dados" para adicionar um novo registro, ou clique em um registro abaixo para editar/excluir.</p>
+            <p class="mb-4 text-gray-400">Clique em "Inserir/Editar Dados" para adicionar um novo registro. A edição/exclusão deve ser feita diretamente na Planilha Google.</p>
             <div id="reverse-records-list" class="space-y-3">
-                <p class="text-gray-400">Nenhum registro encontrado.</p>
+                <p class="text-gray-400">Carregando histórico...</p>
             </div>
         </div>
     </div> 
@@ -180,10 +180,11 @@
 
     <script>
         // --- CONFIGURAÇÃO DO GOOGLE SHEETS API ---
+        // ESTA É A URL DO SEU APPS SCRIPT
         const GOOGLE_SHEETS_URL = 'https://script.google.com/a/macros/shopee.com/s/AKfycbyPIA13h6bJHGj7AMIPexksMNBxlK3GAoJ1eMrbPnBBbfgedhwdQ54ZRFDbQK9HnoM_zg/exec';
         // ----------------------------------------
 
-        // --- DADOS DE EXEMPLO (AGORA SÓ PARA TESTE E ESTRUTURA) ---
+        // --- DADOS DE EXEMPLO (AGORA É APENAS O VALOR INICIAL) ---
         const MOCK_INVENTORY_DATA = [];
         const MOCK_REVERSE_DATA = [];
 
@@ -224,44 +225,43 @@
             { key: 'lhsCarregadas', label: 'Saídas LH’s Carregadas (Pallets / Sacas / Papelão)', type: 'Saídas', group: 'saida' },
         ];
 
-        // allMetrics agora será carregado do Sheets na função initApp
+        // Variáveis globais para os dados (agora carregados do Sheets)
         let allMetrics = { Inventário: [], Reversa: [] };
         let chartInstances = {};
 
-        // --- Funções de Inicialização e Cálculo (Mantidas) ---
+        // --- Funções de Inicialização e Cálculo ---
         function calculateInventario(data) {
-            const totalEHA = (data.pacotesEHA_AM || 0) + (data.pacotesEHA_PM || 0);
-            const totalSorting = (data.erroSortingAM || 0) + (data.erroSortingPM || 0);
-            const totalAvarias = (data.totalAvariadosRecebidosAM || 0) + (data.totalAvariadosRecebidosPM || 0);
-            const totalErroEtiqueta = (data.erroEtiquetaAM || 0) + (data.erroEtiquetaPM || 0);
+            // Garante que os valores sejam numéricos
+            const getNum = (key) => parseFloat(data[key] || 0);
+
+            const totalEHA = getNum('pacotesEHA_AM') + getNum('pacotesEHA_PM');
+            const totalSorting = getNum('erroSortingAM') + getNum('erroSortingPM');
+            const totalAvarias = getNum('totalAvariadosRecebidosAM') + getNum('totalAvariadosRecebidosPM');
+            const totalErroEtiqueta = getNum('erroEtiquetaAM') + getNum('erroEtiquetaPM');
+            
             return { totalEHA, totalSorting, totalAvarias, totalErroEtiqueta };
         }
 
         function calculateReversa(data) {
-            return {};
+            // Campos de cálculo mais simples para a reversa
+            const getNum = (key) => parseFloat(data[key] || 0);
+            const mediaPacotesPorLH = getNum('lhsRecebidas') > 0 ? (getNum('totalPacotesDescarregados') / getNum('lhsRecebidas')) : 0;
+            return { mediaPacotesPorLH };
         }
         
-        // --- FUNÇÃO DE SALVAMENTO ATUALIZADA (ENVIO PARA O SHEETS) ---
+        // --- FUNÇÃO DE SALVAMENTO (ENVIO PARA O SHEETS) ---
         async function saveDataToSheets(area, data) {
             const saveButton = document.getElementById('save-data-btn');
             saveButton.textContent = 'Salvando...';
             saveButton.disabled = true;
 
             try {
-                // Prepara os dados do formulário para o envio
                 const formData = new URLSearchParams();
                 for (const key in data) {
-                    // Trata data e observacoes como string; métricas como número
-                    if (key === 'date' || key === 'observacoes' || key === 'area') {
-                         formData.append(key, data[key]);
-                    } else {
-                         // Garante que todos os campos numéricos sejam enviados, mesmo que vazios (Apps Script trata como 0)
-                        formData.append(key, data[key] || 0);
-                    }
+                    formData.append(key, data[key]);
                 }
                 formData.append('area', area);
                 
-                // Envio dos dados usando o método POST
                 const response = await fetch(GOOGLE_SHEETS_URL, {
                     method: 'POST',
                     body: formData
@@ -275,12 +275,11 @@
 
                 if (result.status === 'success') {
                     showMessage(`Dados de ${area} em ${data.date} salvos com sucesso no Google Sheets!`, false);
+                    
+                    // Fechar modal e recarregar dados
                     document.getElementById('data-modal').classList.add('hidden');
                     document.getElementById('data-modal').classList.remove('flex');
-                    
-                    // Atualiza a dashboard após o salvamento (A IMPLEMENTAÇÃO COMPLETA DE LEITURA VIRÁ DEPOIS)
-                    // Por enquanto, apenas recarrega o dashboard para mostrar que o formulário está funcionando.
-                    // initApp(); 
+                    initApp(true); // Recarrega os dados após salvar
                     
                 } else {
                     throw new Error(result.message || 'Erro desconhecido ao salvar.');
@@ -295,38 +294,50 @@
             }
         }
         
-        // deleteDataFromStorage foi removido, pois a exclusão exige mais complexidade no Apps Script.
-        // A edição e exclusão serão feitas diretamente na Planilha Google por enquanto.
-        function deleteDataFromStorage(area, date) {
-            showMessage(`A exclusão de dados é temporariamente manual e deve ser feita diretamente na Planilha Google.`, true);
-        }
+        // --- FUNÇÃO DE CARREGAMENTO DE DADOS (LEITURA DO SHEETS) ---
+        async function fetchAllData() {
+            try {
+                const response = await fetch(GOOGLE_SHEETS_URL, {
+                    method: 'GET'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Erro de rede: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
 
-        // --- Funções de UI (Mantidas) ---
+                if (result.status === 'success' && result.data) {
+                    allMetrics.Inventário = result.data.Inventário || [];
+                    allMetrics.Reversa = result.data.Reversa || [];
+                    
+                    // Adiciona os campos calculados (totalSorting, etc.)
+                    allMetrics.Inventário = allMetrics.Inventário.map(m => ({ ...m, ...calculateInventario(m) }));
+                    allMetrics.Reversa = allMetrics.Reversa.map(m => ({ ...m, ...calculateReversa(m) }));
+
+                    showMessage("✅ Dados carregados com sucesso do Google Sheets!", false);
+                } else {
+                    throw new Error(result.message || 'Falha ao processar dados do Sheets.');
+                }
+                
+            } catch (error) {
+                showMessage(`Falha ao carregar dados do Google Sheets: ${error.message}. Verifique a implantação do Apps Script.`, true);
+                allMetrics.Inventário = MOCK_INVENTORY_DATA;
+                allMetrics.Reversa = MOCK_REVERSE_DATA;
+                console.error('Erro de carregamento:', error);
+            }
+        }
+        
         function showMessage(message, isError = false) {
             const el = document.getElementById('system-message');
             el.textContent = message;
             el.classList.remove('hidden', 'bg-red-600', 'bg-green-600');
             el.classList.add(isError ? 'bg-red-600' : 'bg-green-600');
-            setTimeout(() => el.classList.add('hidden'), 8000); // Aumenta o tempo para avisos do Sheets
+            setTimeout(() => el.classList.add('hidden'), 8000); 
         }
 
         function formatDate(date) {
             return date instanceof Date ? date.toISOString().split('T')[0] : date;
-        }
-
-        function showCustomConfirmation(message, onConfirm) {
-            let modalConfirmation = document.getElementById('custom-confirmation-modal');
-            modalConfirmation.classList.remove('hidden');
-            modalConfirmation.classList.add('flex');
-            modalConfirmation.innerHTML = `<div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-sm w-full"><h5 class="text-lg font-bold mb-4 text-shopee">Confirmação de Ação</h5><p class="mb-6 text-gray-300">${message}</p><div class="flex justify-end space-x-3"><button id="cancel-action" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500">Cancelar</button><button id="confirm-action" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500">Confirmar</button></div></div>`;
-            
-            const removeModal = () => {
-                modalConfirmation.classList.add('hidden');
-                modalConfirmation.classList.remove('flex');
-            };
-
-            document.getElementById('cancel-action').addEventListener('click', removeModal);
-            document.getElementById('confirm-action').addEventListener('click', () => { onConfirm(); removeModal(); });
         }
 
         function renderForm(area, initialData = {}) {
@@ -356,11 +367,10 @@
             listContainer.innerHTML = '';
             
             if (metrics.length === 0) {
-                listContainer.innerHTML = '<p class="text-gray-400">Nenhum registro encontrado (Carregando do Sheets na versão final).</p>';
+                listContainer.innerHTML = '<p class="text-gray-400">Nenhum registro encontrado no Google Sheets. Insira um novo dado.</p>';
                 return;
             }
             
-            // O restante da função renderHistoricalRecords está aqui (mantida a lógica de exibição, mas sem dados reais por enquanto)
             const sortedMetrics = metrics.sort((a, b) => new Date(b.date) - new Date(a.date));
 
             sortedMetrics.forEach(metric => {
@@ -378,15 +388,12 @@
                 }
 
                 const div = document.createElement('div');
-                // Removemos os botões Editar/Excluir temporariamente pois dependem de uma API de leitura e escrita mais complexa no Sheets.
                 div.className = 'flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 card rounded-lg border border-gray-600';
                 div.innerHTML = `<div class="mb-2 sm:mb-0"><span class="font-semibold text-gray-200">${metric.date}</span><span class="ml-4 ${mainMetricColor} font-bold">${mainMetricDisplay}</span></div><div class="space-x-2 flex"><p class="text-gray-500 text-sm">Salvo no Sheets</p></div>`;
                 listContainer.appendChild(div);
             });
         }
         
-        // editRecord foi removido, pois a edição exige mais complexidade no Apps Script.
-
         function openDataModal(area = 'Inventário', data = {}) {
             if (!data.date) {
                 document.getElementById('modal-title').textContent = 'Inserir Dados Diários';
@@ -420,11 +427,13 @@
                 const start = document.getElementById('start-date').value;
                 const end = document.getElementById('end-date').value;
                 loadDashboardMetrics(start, end);
+            } else if (targetId === 'inventory-content') {
+                renderHistoricalRecords('inventory-records-list', 'Inventário', allMetrics.Inventário);
+            } else if (targetId === 'reverse-content') {
+                renderHistoricalRecords('reverse-records-list', 'Reversa', allMetrics.Reversa);
             }
         }
 
-        // loadDashboardMetrics e as funções de cálculo de KPI/Chart dependem da função fetchAllData
-        // Que virá no próximo passo, por enquanto, elas só renderizam o MOCK vazio.
         function loadDashboardMetrics(startDate, endDate) {
             const inventarioMetrics = allMetrics.Inventário.filter(m => m.date >= startDate && m.date <= endDate);
             const reversaMetrics = allMetrics.Reversa.filter(m => m.date >= startDate && m.date <= endDate);
@@ -432,69 +441,66 @@
             calculateAndRenderKPIs(inventarioMetrics, reversaMetrics);
             renderDashboardCharts(inventarioMetrics, reversaMetrics);
         }
-
-        // As funções de cálculo de KPI e Chart foram mantidas, usando a estrutura do seu código anterior.
-
+        
         function calculateAndRenderKPIs(inventarioMetrics, reversaMetrics) {
             const container = document.getElementById('kpi-dashboard-container');
-            container.innerHTML = inventarioMetrics.length === 0 ? '<p class="text-gray-400">Dados não carregados. Por favor, insira um registro.</p>' : '';
-            // Restante da lógica KPI (mantida, mas só roda com dados)
+            container.innerHTML = inventarioMetrics.length === 0 && reversaMetrics.length === 0 ? '<p class="text-gray-400">Nenhum dado encontrado para o período. Por favor, insira um registro.</p>' : '';
+            
             if (inventarioMetrics.length > 0 || reversaMetrics.length > 0) {
                 // --- CÁLCULOS DE INVENTÁRIO ---
-                const totalDesvios = inventarioMetrics.reduce((sum, m) => sum + (m.desviosExpedicao || 0), 0);
+                const getInvSum = (key) => inventarioMetrics.reduce((sum, m) => sum + (parseFloat(m[key]) || 0), 0);
                 
-                const totalEHA = inventarioMetrics.reduce((sum, m) => sum + (m.pacotesEHA_AM || 0) + (m.pacotesEHA_PM || 0), 0);
-                const totalSortingErros = inventarioMetrics.reduce((sum, m) => sum + (m.erroSortingAM || 0) + (m.erroSortingPM || 0), 0);
-                const totalAvariadosRecebidos = inventarioMetrics.reduce((sum, m) => sum + (m.totalAvariadosRecebidosAM || 0) + (m.totalAvariadosRecebidosPM || 0), 0);
-                const totalErroEtiqueta = inventarioMetrics.reduce((sum, m) => sum + (m.erroEtiquetaAM || 0) + (m.erroEtiquetaPM || 0), 0);
+                const totalDesvios = getInvSum('desviosExpedicao');
+                const totalEHA = getInvSum('pacotesEHA_AM') + getInvSum('pacotesEHA_PM');
+                const totalSortingErros = getInvSum('erroSortingAM') + getInvSum('erroSortingPM');
+                const totalAvariadosRecebidos = getInvSum('totalAvariadosRecebidosAM') + getInvSum('totalAvariadosRecebidosPM');
+                const totalErroEtiqueta = getInvSum('erroEtiquetaAM') + getInvSum('erroEtiquetaPM');
+                const totalAvariadosHUB = getInvSum('avariadosHUB');
+                const totalAvariadosSOC = getInvSum('avariadosSOC');
+                const totalPacotesRecuperados = getInvSum('pacotesRecuperados');
                 
-                const totalAvariadosHUB = inventarioMetrics.reduce((sum, m) => sum + (m.avariadosHUB || 0), 0);
-                const totalAvariadosSOC = inventarioMetrics.reduce((sum, m) => sum + (m.avariadosSOC || 0), 0);
-                const totalPacotesRecuperados = inventarioMetrics.reduce((sum, m) => sum + (m.pacotesRecuperados || 0), 0);
-                
-                const latestInventarioBacklog = inventarioMetrics.length > 0 ? inventarioMetrics.sort((a, b) => new Date(b.date) - new Date(a.date))[0].backlogInventario || 0 : 0;
+                const latestInventarioBacklog = inventarioMetrics.length > 0 ? getInvSum('backlogInventario') / inventarioMetrics.length : 0; // Se quiser a média, ou pegar o último registro: inventarioMetrics.sort((a, b) => new Date(b.date) - new Date(a.date))[0].backlogInventario || 0;
 
-
-                // FUNÇÕES PARA DETALHE AM/PM
                 const detailEHA = inventarioMetrics.length > 0 ? 
-                    `(${inventarioMetrics.reduce((sum, m) => sum + (m.pacotesEHA_AM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.pacotesEHA_PM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
+                    `(${getInvSum('pacotesEHA_AM').toLocaleString('pt-BR')} AM / ${getInvSum('pacotesEHA_PM').toLocaleString('pt-BR')} PM)` : '';
 
                 const detailSorting = inventarioMetrics.length > 0 ? 
-                    `(${inventarioMetrics.reduce((sum, m) => sum + (m.erroSortingAM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.erroSortingPM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
+                    `(${getInvSum('erroSortingAM').toLocaleString('pt-BR')} AM / ${getInvSum('erroSortingPM').toLocaleString('pt-BR')} PM)` : '';
 
                 const detailAvarias = inventarioMetrics.length > 0 ? 
-                    `(${inventarioMetrics.reduce((sum, m) => sum + (m.totalAvariadosRecebidosAM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.totalAvariadosRecebidosPM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
+                    `(${getInvSum('totalAvariadosRecebidosAM').toLocaleString('pt-BR')} AM / ${getInvSum('totalAvariadosRecebidosPM').toLocaleString('pt-BR')} PM)` : '';
 
                 const detailErroEtiqueta = inventarioMetrics.length > 0 ? 
-                    `(${inventarioMetrics.reduce((sum, m) => sum + (m.erroEtiquetaAM || 0), 0).toLocaleString('pt-BR')} AM / ${inventarioMetrics.reduce((sum, m) => sum + (m.erroEtiquetaPM || 0), 0).toLocaleString('pt-BR')} PM)` : '';
-
+                    `(${getInvSum('erroEtiquetaAM').toLocaleString('pt-BR')} AM / ${getInvSum('erroEtiquetaPM').toLocaleString('pt-BR')} PM)` : '';
 
                 // --- CÁLCULOS DE REVERSA ---
-                const totalInsucessos = reversaMetrics.reduce((sum, m) => sum + (m.insucessosRecebidos || 0), 0);
-                const totalLHsRecebidas = reversaMetrics.reduce((sum, m) => sum + (m.lhsRecebidas || 0), 0);
-                const totalPacotesDescarregados = reversaMetrics.reduce((sum, m) => sum + (m.totalPacotesDescarregados || 0), 0);
+                const getRevSum = (key) => reversaMetrics.reduce((sum, m) => sum + (parseFloat(m[key]) || 0), 0);
+                
+                const totalInsucessos = getRevSum('insucessosRecebidos');
+                const totalLHsRecebidas = getRevSum('lhsRecebidas');
+                const totalPacotesDescarregados = getRevSum('totalPacotesDescarregados');
                 const avgPacotesPorLH = totalLHsRecebidas > 0 ? (totalPacotesDescarregados / totalLHsRecebidas) : 0;
 
                 // --- DEFINIÇÃO DOS KPIS ---
                 const kpis = [
-                    // 1. INVENTÁRIO (VOLUME & ERROS CRÍTICOS)
+                    // INVENTÁRIO
                     { name: 'Pacotes EHA (Entrada)', value: totalEHA.toLocaleString('pt-BR'), detail: detailEHA, color: 'bg-blue-700', sub: 'Inventário - Volume Base' },
                     { name: 'Sorting Erros (Período)', value: totalSortingErros.toLocaleString('pt-BR'), detail: detailSorting, color: 'bg-red-700', sub: 'Inventário - Erro Classificação' },
                     { name: 'Erros Etiqueta Errada', value: totalErroEtiqueta.toLocaleString('pt-BR'), detail: detailErroEtiqueta, color: 'bg-red-700', sub: 'Inventário - Erro Etiqueta' },
                     { name: 'Desvios Expedição', value: totalDesvios.toLocaleString('pt-BR'), detail: '', color: 'bg-red-700', sub: 'Inventário - Crítico' },
-                    { name: 'Backlog (Inventário)', value: latestInventarioBacklog.toLocaleString('pt-BR'), detail: '', color: latestInventarioBacklog > 0 ? 'accent-shopee' : 'bg-green-600', sub: 'Inventário - Status Atual' },
+                    { name: 'Backlog (Inventário - Média)', value: latestInventarioBacklog.toFixed(0).toLocaleString('pt-BR'), detail: '', color: latestInventarioBacklog > 0 ? 'accent-shopee' : 'bg-green-600', sub: 'Inventário - Média do Período' },
                     
-                    // 2. REVERSA (STATUS & VOLUME)
+                    // REVERSA
                     { name: 'Insucessos Recebidos', value: totalInsucessos.toLocaleString('pt-BR'), detail: '', color: 'bg-indigo-600', sub: 'Reversa - Volume Processado' },
                     { name: 'LH’s Recebidas', value: totalLHsRecebidas.toLocaleString('pt-BR'), detail: '', color: 'bg-gray-600', sub: 'Reversa - Entrada Carretas' },
-                    { name: 'Pacotes Descarregados', value: totalPacotesDescarregados.toLocaleString('pt-BR'), detail: '', color: 'bg-gray-600', sub: 'Reversa - Volume por LH' },
+                    { name: 'Pacotes Descarregados', value: totalPacotesDescarregados.toLocaleString('pt-BR'), detail: '', color: 'bg-gray-600', sub: 'Reversa - Volume total' },
                     { name: 'Pacotes / LH (Média)', value: avgPacotesPorLH.toFixed(0).toLocaleString('pt-BR'), detail: '', color: 'bg-gray-600', sub: 'Reversa - Média por Carreta' },
                     
-                    // 3. INVENTÁRIO (AVARIAS E RECUPERAÇÃO)
+                    // AVARIAS
                     { name: 'Avariados Recebidos', value: totalAvariadosRecebidos.toLocaleString('pt-BR'), detail: detailAvarias, color: 'bg-yellow-700', sub: 'Inventário - Total de Avarias' },
-                    { name: 'Avariados HUB (Responsabilidade)', value: totalAvariadosHUB.toLocaleString('pt-BR'), detail: '', color: 'bg-red-800', sub: 'Inventário - HUB Share' },
-                    { name: 'Avariados SOC (Responsabilidade)', value: totalAvariadosSOC.toLocaleString('pt-BR'), detail: '', color: 'bg-red-800', sub: 'Inventário - SOC Share' },
-                    { name: 'Pacotes Recuperados (Salvamento)', value: totalPacotesRecuperados.toLocaleString('pt-BR'), detail: '', color: 'bg-green-700', sub: 'Inventário - Volume Salvo' }
+                    { name: 'Avariados HUB', value: totalAvariadosHUB.toLocaleString('pt-BR'), detail: '', color: 'bg-red-800', sub: 'Inventário - HUB Share' },
+                    { name: 'Avariados SOC', value: totalAvariadosSOC.toLocaleString('pt-BR'), detail: '', color: 'bg-red-800', sub: 'Inventário - SOC Share' },
+                    { name: 'Pacotes Recuperados', value: totalPacotesRecuperados.toLocaleString('pt-BR'), detail: '', color: 'bg-green-700', sub: 'Inventário - Volume Salvo' }
                 ];
 
                 // Renderiza os KPIs
@@ -520,7 +526,6 @@
 
             if (inventarioMetrics.length === 0 && reversaMetrics.length === 0) return;
             
-            // ... Restante da lógica de renderização de gráficos (mantida) ...
             const chartGlobalOptions = {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -536,16 +541,25 @@
             const sortedInv = inventarioMetrics.sort((a, b) => new Date(a.date) - new Date(b.date));
             const sortedRev = reversaMetrics.sort((a, b) => new Date(a.date) - new Date(b.date));
 
+            // Mapeamento dos dados para gráficos
+            const invLabels = sortedInv.map(m => m.date);
+            const invSortingData = sortedInv.map(m => m.totalSorting);
+            const invDesviosData = sortedInv.map(m => m.desviosExpedicao);
+            const invBacklogData = sortedInv.map(m => m.backlogInventario);
+
+            const revLabels = sortedRev.map(m => m.date);
+            const revInsucessosData = sortedRev.map(m => m.insucessosRecebidos);
+
             // GRÁFICO 1: Erros Sorting
             const ctx1 = document.getElementById('sortingChart')?.getContext('2d');
-            if (ctx1 && sortedInv.length > 0) {
+            if (ctx1 && invLabels.length > 0) {
                 chartInstances.sortingChart = new Chart(ctx1, {
                     type: 'line',
                     data: {
-                        labels: sortedInv.map(m => m.date),
+                        labels: invLabels,
                         datasets: [{
                             label: 'Erros Sorting (AM + PM)',
-                            data: sortedInv.map(m => m.totalSorting),
+                            data: invSortingData,
                             borderColor: '#FF5C00',
                             backgroundColor: 'rgba(255, 92, 0, 0.3)',
                             fill: true,
@@ -558,14 +572,14 @@
 
             // GRÁFICO 2: Desvios
             const ctx2 = document.getElementById('desviosChart')?.getContext('2d');
-            if (ctx2 && sortedInv.length > 0) {
+            if (ctx2 && invLabels.length > 0) {
                 chartInstances.desviosChart = new Chart(ctx2, {
                     type: 'bar',
                     data: {
-                        labels: sortedInv.map(m => m.date),
+                        labels: invLabels,
                         datasets: [{
                             label: 'Desvios de Expedição',
-                            data: sortedInv.map(m => m.desviosExpedicao),
+                            data: invDesviosData,
                             backgroundColor: '#dc2626'
                         }]
                     },
@@ -575,14 +589,14 @@
 
             // GRÁFICO 3: Insucessos Reversa
             const ctx3 = document.getElementById('insucessosChart')?.getContext('2d');
-            if (ctx3 && sortedRev.length > 0) {
+            if (ctx3 && revLabels.length > 0) {
                 chartInstances.insucessosChart = new Chart(ctx3, {
                     type: 'line',
                     data: {
-                        labels: sortedRev.map(m => m.date),
+                        labels: revLabels,
                         datasets: [{
                             label: 'Insucessos Recebidos',
-                            data: sortedRev.map(m => m.insucessosRecebidos),
+                            data: revInsucessosData,
                             borderColor: '#818cf8',
                             backgroundColor: 'rgba(129, 140, 248, 0.3)',
                             fill: true,
@@ -595,15 +609,14 @@
 
             // GRÁFICO 4: Backlog Inventário (Progressão)
             const ctx4 = document.getElementById('backlogChart')?.getContext('2d');
-            if (ctx4 && sortedInv.length > 0) {
-                document.querySelector('#backlogChart').closest('.flex-col').querySelector('p')?.remove();
+            if (ctx4 && invLabels.length > 0) {
                 chartInstances.backlogChart = new Chart(ctx4, {
                     type: 'line',
                     data: {
-                        labels: sortedInv.map(m => m.date),
+                        labels: invLabels,
                         datasets: [{
                             label: 'Backlog Inventário (Pendências)',
-                            data: sortedInv.map(m => m.backlogInventario),
+                            data: invBacklogData,
                             borderColor: '#FF5C00',
                             backgroundColor: 'rgba(255, 92, 0, 0.3)',
                             fill: true,
@@ -615,40 +628,28 @@
             }
         }
         
-        // --- FUNÇÃO DE CARREGAMENTO DE DADOS (AGORA DO SHEETS, MAS VAZIA) ---
-        async function fetchAllData() {
-            // Este é o passo que falta! Por enquanto, usamos MOCK vazio.
-            // A leitura de dados do Sheets exige um novo App Script de GET,
-            // que será implementado no próximo passo.
-            allMetrics.Inventário = [];
-            allMetrics.Reversa = [];
-
-            // Adiciona um dado de teste, se quiser visualizar a dashboard
-            // allMetrics.Inventário.push({ date: formatDate(new Date()), ...INVENTORY_FIELDS.reduce((acc, f) => ({ ...acc, [f.key]: 10 }), {}), observacoes: 'Teste' });
-            
-            // Re-calcula as métricas após carregar/simular os dados
-            allMetrics.Inventário = allMetrics.Inventário.map(m => ({ ...m, ...calculateInventario(m) }));
-            allMetrics.Reversa = allMetrics.Reversa.map(m => ({ ...m, ...calculateReversa(m) }));
-        }
-
         // --- Função de Inicialização principal ---
-        async function initApp() {
-            // Primeiro, tenta carregar os dados (que por enquanto, virão vazios/mocked)
+        async function initApp(reload = false) {
+            if (!reload) {
+                // Configura datas iniciais apenas no primeiro carregamento
+                const today = formatDate(new Date());
+                const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+                document.getElementById('start-date').value = formatDate(firstDayOfMonth);
+                document.getElementById('end-date').value = today;
+                setupListeners();
+            }
+            
+            // Carrega os dados do Sheets
             await fetchAllData(); 
             
-            const today = formatDate(new Date());
-            const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+            // Renderiza com os dados carregados
+            const start = document.getElementById('start-date').value;
+            const end = document.getElementById('end-date').value;
 
-            document.getElementById('start-date').value = formatDate(firstDayOfMonth);
-            document.getElementById('end-date').value = today;
-
-            loadDashboardMetrics(formatDate(firstDayOfMonth), today);
+            loadDashboardMetrics(start, end);
             renderHistoricalRecords('inventory-records-list', 'Inventário', allMetrics.Inventário);
             renderHistoricalRecords('reverse-records-list', 'Reversa', allMetrics.Reversa);
-            
-            setupListeners();
-
-            showMessage("⚠️ Alerta: O salvamento está configurado para o Google Sheets, mas a leitura (visão dos dados antigos) ainda está vazia. Insira um novo registro para testar o salvamento.", false);
         }
 
         function setupListeners() {
@@ -671,7 +672,6 @@
 
             document.getElementById('input-area').addEventListener('change', (e) => renderForm(e.target.value, {}));
             
-            // --- LISTENER DE SUBMISSÃO (CHAMA A NOVA FUNÇÃO DE SALVAMENTO) ---
             document.getElementById('daily-data-form').addEventListener('submit', (e) => {
                 e.preventDefault();
                 
@@ -679,20 +679,18 @@
                 const data = {
                     date: document.getElementById('input-date').value,
                     observacoes: document.getElementById('input-observacoes').value,
-                    area: area // Adiciona a área para a planilha
+                    area: area 
                 };
 
                 document.querySelectorAll('#dynamic-fields-container input[data-metric-key]').forEach(input => {
                     // Trata campos vazios como 0 antes de enviar.
                     const inputValue = input.value.trim() === '' ? '0' : input.value;
-                    const value = parseInt(inputValue, 10) || 0; // Garante que seja um número ou 0
+                    const value = parseInt(inputValue, 10) || 0;
                     data[input.dataset.metricKey] = value;
                 });
 
-                // Chama a nova função de salvamento do Sheets
                 saveDataToSheets(area, data);
             });
-            // --- FIM DO LISTENER DE SUBMISSÃO ---
 
             document.getElementById('dynamic-fields-container').addEventListener('input', updateCalculations);
         }
